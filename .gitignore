@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+build/
+
+# Environment
+.env
+
+# Infrastructure data (gitignored, persisted locally)
+infra/minio_data/*
+infra/postgres_data/*
+!infra/*/.gitkeep
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

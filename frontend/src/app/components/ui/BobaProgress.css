@@ -1,0 +1,231 @@
+/* BobaProgress Component Styles */
+
+.boba-progress-container {
+  position: relative;
+  width: 100%;
+  padding: 1.5rem;
+  background: var(--card, #ffffff);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+.boba-cup-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.boba-cup-container {
+  position: relative;
+  width: 120px;
+  height: 140px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+/* Cup body */
+.boba-cup {
+  position: relative;
+  width: 80px;
+  height: 120px;
+  border: 3px solid #8b5a3c;
+  border-radius: 0 0 12px 12px;
+  background: rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* Liquid inside cup */
+.boba-liquid {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, #d4a574 0%, #f4d5a8 50%, #fff8e7 100%);
+  transition: height 0.3s ease-out;
+  border-radius: 0 0 9px 9px;
+  z-index: 2;
+}
+
+/* Pearl layer at bottom */
+.boba-pearl-layer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.boba-pearl {
+  width: 8px;
+  height: 8px;
+  background: #3a2a1a;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Falling pearls */
+.boba-falling-pearl {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #3a2a1a;
+  border-radius: 50%;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.boba-falling-pearl-animate {
+  animation: boba-pearl-fall 1.5s ease-in forwards;
+}
+
+@keyframes boba-pearl-fall {
+  0% {
+    transform: translateY(-20px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(140px);
+    opacity: 0.8;
+  }
+}
+
+/* Straw (completion animation) */
+.boba-straw {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  width: 6px;
+  height: 60px;
+  background: linear-gradient(to bottom, #ff6b6b 0%, #ee5a52 100%);
+  border-radius: 3px 3px 0 0;
+  z-index: 5;
+  opacity: 0;
+}
+
+.boba-straw-enter {
+  animation: boba-straw-insert 0.4s ease-out forwards;
+}
+
+@keyframes boba-straw-insert {
+  0% {
+    transform: translateX(-50%) translateY(-30px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Pop bubble animation */
+.boba-pop-bubble {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%) scale(0);
+  z-index: 6;
+  pointer-events: none;
+}
+
+.boba-pop-bubble-animate {
+  animation: boba-pop 0.5s ease-out forwards;
+}
+
+@keyframes boba-pop {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.5);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2);
+    opacity: 0;
+  }
+}
+
+/* Text info */
+.boba-text-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.boba-stage-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--foreground, #1a1a1a);
+}
+
+.boba-counter {
+  font-size: 0.75rem;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.boba-hint {
+  font-size: 0.6875rem;
+  color: var(--muted-foreground, #9ca3af);
+  margin-top: 0.25rem;
+}
+
+/* Size variants */
+.boba-progress-container.size-sm {
+  padding: 1rem;
+}
+
+.boba-progress-container.size-sm .boba-cup-container {
+  width: 100px;
+  height: 120px;
+}
+
+.boba-progress-container.size-sm .boba-cup {
+  width: 70px;
+  height: 100px;
+}
+
+.boba-progress-container.size-sm .boba-stage-text {
+  font-size: 0.8125rem;
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .boba-falling-pearl-animate {
+    animation: none;
+    opacity: 0;
+  }
+  
+  .boba-straw-enter {
+    animation: none;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  
+  .boba-pop-bubble-animate {
+    animation: none;
+    opacity: 0;
+  }
+  
+  .boba-liquid {
+    transition: height 0.1s linear;
+  }
+}

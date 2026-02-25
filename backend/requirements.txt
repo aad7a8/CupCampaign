@@ -1,0 +1,12 @@
+flask
+flask-sqlalchemy
+flask-bcrypt
+flask-cors
+psycopg2-binary
+python-dotenv
+PyJWT
+minio
+google-genai
+gunicorn
+boto3
+requests
