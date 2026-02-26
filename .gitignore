@@ -21,3 +21,4 @@ infra/postgres_data/*
 
 # OS
 .DS_Store
+CLAUDE.md
