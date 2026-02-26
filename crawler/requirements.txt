@@ -1,0 +1,7 @@
+requests
+beautifulsoup4
+python-dotenv
+apscheduler
+langchain>=1.0
+langchain-google-genai>=4.0
+pydantic
