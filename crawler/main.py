@@ -6,7 +6,7 @@ from threading import Event
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
-from spiders import news_spider, news_analyzer, weather_spider
+from spiders import news_spider, news_analyzer
 
 logging.basicConfig(
     level=logging.INFO,
@@ -47,20 +47,8 @@ def run_news_pipeline():
         logger.exception("News analysis failed")
 
 
-def run_weather():
-    """Run weather spider."""
-    logger.info("=== Starting weather fetch ===")
-    try:
-        data = weather_spider.run()
-        if data:
-            logger.info("Weather fetch complete")
-    except Exception:
-        logger.exception("Weather fetch failed")
-
-
 def run_all():
     """Run all spiders."""
-    run_weather()
     run_news_pipeline()
 
 
