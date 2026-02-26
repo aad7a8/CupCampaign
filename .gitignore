@@ -15,6 +15,9 @@ infra/minio_data/*
 infra/postgres_data/*
 !infra/*/.gitkeep
 
+# Crawler output data
+crawler/data/
+
 # IDE
 .vscode/
 .idea/

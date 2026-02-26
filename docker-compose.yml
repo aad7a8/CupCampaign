@@ -58,6 +58,21 @@ services:
     networks:
       - app-network
 
+  crawler:
+    build:
+      context: ./crawler
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - ./crawler/data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
