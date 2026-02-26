@@ -1,4 +1,4 @@
-# Drink Assistant
+# CupCampaign
 
 Full-stack beverage marketing automation system with a React frontend, Flask backend, and infrastructure services (PostgreSQL, MinIO) orchestrated via Docker Compose.
 
@@ -55,7 +55,7 @@ Client :80 ──> Nginx (reverse proxy)
 | -------------------- | --------------------- | ---------------------------- |
 | `POSTGRES_USER`      | `postgres`            | PostgreSQL username          |
 | `POSTGRES_PASSWORD`  | `postgres`            | PostgreSQL password          |
-| `POSTGRES_DB`        | `drink_assistant_db`  | PostgreSQL database name     |
+| `POSTGRES_DB`        | `cup_campaign_db`     | PostgreSQL database name     |
 | `MINIO_ROOT_USER`    | `minioadmin`          | MinIO root username          |
 | `MINIO_ROOT_PASSWORD`| `minioadmin`          | MinIO root password          |
 | `MINIO_ENDPOINT`     | `minio:9000`          | MinIO endpoint (internal)    |

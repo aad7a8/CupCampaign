@@ -29,7 +29,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-drink_assistant_db}
+      POSTGRES_DB: ${POSTGRES_DB:-cup_campaign_db}
     volumes:
       - ./infra/postgres_data:/var/lib/postgresql/data
     ports:

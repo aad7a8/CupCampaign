@@ -1,7 +1,7 @@
 ## 頂層目錄結構
 
 ```plaintext
-drink_assistant/                               # 專案根目錄
+cup_campaign/                                  # 專案根目錄
 │
 ├── backend/                                   # Python 後端（Flask）
 │   ├── app/                                   #   應用程式套件（Package）
@@ -182,7 +182,7 @@ Client :80 ──> Nginx（反向代理）
 | --------------------- | -------------------- | -------------------------- |
 | `POSTGRES_USER`       | `postgres`           | PostgreSQL 使用者名稱       |
 | `POSTGRES_PASSWORD`   | `postgres`           | PostgreSQL 密碼             |
-| `POSTGRES_DB`         | `drink_assistant_db` | PostgreSQL 資料庫名稱       |
+| `POSTGRES_DB`         | `cup_campaign_db`    | PostgreSQL 資料庫名稱       |
 | `MINIO_ROOT_USER`     | `minioadmin`         | MinIO 管理員帳號            |
 | `MINIO_ROOT_PASSWORD` | `minioadmin`         | MinIO 管理員密碼            |
 | `MINIO_ENDPOINT`      | `minio:9000`         | MinIO 內部端點              |
@@ -190,7 +190,7 @@ Client :80 ──> Nginx（反向代理）
 | `DB_PORT`             | `5432`               | Flask 連線用 DB 連接埠      |
 | `DB_USER`             | `postgres`           | Flask 連線用 DB 使用者      |
 | `DB_PASSWORD`         | `postgres`           | Flask 連線用 DB 密碼        |
-| `DB_NAME`             | `drink_assistant_db` | Flask 連線用 DB 名稱        |
+| `DB_NAME`             | `cup_campaign_db`    | Flask 連線用 DB 名稱        |
 | `MY_APP_SECRET_KEY`   | —                    | JWT 簽署密鑰                |
 | `GEMINI_API_KEY`      | —                    | Google Gemini API Key       |
 | `FB_APP_ID`           | —                    | Facebook App ID（選填）     |
