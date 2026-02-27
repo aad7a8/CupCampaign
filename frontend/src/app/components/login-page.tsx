@@ -48,27 +48,97 @@ export function LoginPage({ onLogin, onRegister }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isEmailSent, setIsEmailSent] = useState(false);
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username && password) onLogin(username);
+    if (!username || !password) return;
+
+    setIsLoading(true); // 假設您已新增此狀態
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        // 關鍵：允許瀏覽器接收並發送 Cookie (HttpOnly)
+        credentials: 'include',
+        body: JSON.stringify({
+          username: username, // 對應後端 data.get('username')
+          password: password
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.status === "success") {
+        // 登入成功
+        onLogin(username);
+        // 如果後端有回傳 redirect 路徑，也可以在此處理導向
+        // window.location.href = data.redirect;
+      } else {
+        // 顯示後端回傳的「帳號或密碼錯誤」
+        alert(data.message || '登入失敗');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('連線至伺服器失敗');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  // 在 LoginPage 組件內的 handleRegisterSubmit 替換為以下邏輯
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (username && password) {
-      onRegister({
-        username,
-        password,
-        brandName,
-        storeCounty,
-        storeName,
+
+    // 1. 基礎前端檢查
+    if (!username || !password || !brandName || !storeCounty || !storeName) {
+      alert("請完整填寫註冊資訊");
+      return;
+    }
+
+    setIsLoading(true);
+
+    // 2. 組合後端預期的 store_id 字串格式
+    const combinedStoreId = `${brandName}-${storeCounty}-${storeName}`;
+
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: username,        // 對應後端 data.get('email')
+          password: password,     // 對應後端 data.get('password')
+          tenant_name: brandName, // 對應後端 data.get('tenant_name')
+          storeCounty: storeCounty,      // 對應後端 data.get('city')
+          store_name: storeName,  // 對應後端 data.get('store_name')
+        }),
       });
+
+      const data = await response.json();
+
+      if (response.ok && data.status === "success") {
+        alert(data.message || "註冊成功！");
+        setMode('LOGIN'); // 切換回登入模式
+        // 清空密碼，保留帳號方便使用者直接登入
+        setPassword('');
+      } else {
+        // 顯示「Email 已被註冊」或其他錯誤訊息
+        alert(data.message || "註冊失敗");
+      }
+    } catch (error) {
+      console.error('Registration Error:', error);
+      alert("連線失敗，請檢查網路連線");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleSendResetEmail = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!email) {
       toast.error(t('alerts.emailRequired'));
       return;
