@@ -10,3 +10,5 @@ google-genai
 gunicorn
 boto3
 requests
+Pillow
+numpy

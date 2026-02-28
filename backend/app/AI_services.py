@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+
 def get_gemini_client():
     # 確保 .env 檔案中有 GEMINI_API_KEY
     return genai.Client(

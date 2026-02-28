@@ -3,7 +3,7 @@ from app.models import (
     db, Product, Tenant, MarketingContent, Users, Store,
     Ingredient, ProductComposition, PlatformToken, ContentImage
 )
-from app.image_services import call_nano_banana
+from app.image_services import call_nano_banana_logic
 from app.AI_services import generate_drink_post
 from datetime import datetime, timezone, timedelta
 import os
@@ -272,6 +272,36 @@ def register_routes(app):
     # ==========================================
     # Upload API
     # ==========================================
+# 確保裝飾器路徑包含 /api (對應 Nginx 設定)
+    @app.route('/api/upload_and_generate', methods=['POST'])
+    def upload_and_generate_route():
+        # --- 以下所有內容都必須縮排 4 個空格 ---
+        
+        # 1. 檢查檔案是否存在
+        if 'file' not in request.files:
+            return jsonify({"status": "error", "message": "未提供圖片檔案"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"status": "error", "message": "檔名為空"}), 400
+
+        # 2. 取得前端傳來的文案 (formData.append('prompt', ...))
+        user_prompt = request.form.get('prompt', '')
+
+        try:
+            # 3. 呼叫 Service 邏輯
+            result = call_nano_banana_logic(file)
+
+            # 4. 根據結果回傳 Response
+            if result.get("status") == "success":
+                return jsonify(result), 200
+            else:
+                return jsonify(result), 500
+                
+        except Exception as e:
+            # 萬一 Service 噴錯，回傳 JSON 格式的錯誤訊息
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
     @app.route('/api/upload', methods=['POST'])
     def handle_upload():
         token = request.cookies.get('access_token')
