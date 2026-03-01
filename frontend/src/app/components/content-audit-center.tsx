@@ -173,39 +173,31 @@ export function ContentAuditCenter() {
   };
 
   const handleGenerateImage = async (copyId?: string) => {
-    if (!uploadedImage || (!copyId && !selectedCopyId)) return;
+    if (!uploadedImage) return;
+    const copyIdToUse = copyId || selectedCopyId;
+    if (!copyIdToUse) return;
+    const copy = copyCandidates.find(c => c.id === copyIdToUse);
+    if (!copy) return;
 
     setStage('image_generating');
-    setGenerationStatus('queued');
-    setGeneratedImages([]);
-    setSelectedImage(null);
-
-    setTimeout(() => {
-      setGenerationStatus('generating');
-      setGenerationProgress(0);
-
-      const progressInterval = setInterval(() => {
-        setGenerationProgress(prev => (prev >= 90 ? 90 : prev + 10));
-      }, 200);
-
-      generateMockImages(uploadedImage)
-        .then((images: GeneratedImage[]) => {
-          clearInterval(progressInterval);
-          setGenerationProgress(100);
-          setGeneratedImages(images);
-          setGenerationStatus('done');
-          setStage('done');
-          if (images.length > 0) setSelectedImage(images[0].id);
-        })
-        .catch(() => {
-          clearInterval(progressInterval);
-          setGenerationStatus('idle');
-          setStage('copy_ready');
-        });
-    }, 500);
+    setGenerationStatus('generating');
+    
+    generateMockImages(uploadedImage)
+      .then((images) => {
+        setGeneratedImages(images);
+        setGenerationStatus('done');
+        setStage('done');
+        if (images.length > 0) setSelectedImage(images[0].id);
+      })
+      .catch((error) => {
+        setGenerationStatus('idle');
+        setStage('copy_ready');
+        setErrorMessage(`圖片生成失敗: ${error.message}`);
+      });
   };
 
   const handleSelectImage = (imageId: string) => setSelectedImage(imageId);
+
   const handleRegenerate = () => selectedCopyId && handleGenerateImage();
 
   const handleEditCopy = (e: React.MouseEvent, copyId: string) => {
@@ -232,42 +224,56 @@ export function ContentAuditCenter() {
     setEditTextValue('');
   };
 
-  const handleSelectCopyStyle = (copyId: string) => {
+  const handleSelectCopyStyle = async (copyId: string) => {
     setSelectedCopyId(copyId);
     setErrorMessage(null);
-
     const copy = copyCandidates.find(c => c.id === copyId);
-    setSelectedStyleName(copy?.name || '此風格');
-    setGeneratedImages([]);
-    setSelectedImage(null);
+    const styleName = copy?.name || '此風格';
+    const finalPrompt = copy?.editedText ?? copy?.content;
+    setSelectedStyleName(styleName);
 
     setShowTeaFlowProgress(true);
     teaFlowStart();
     setStage('image_generating');
     setGenerationStatus('generating');
-    setGenerationProgress(0);
+  
+    try {
+      const responseBlob = await fetch(uploadedImage!);
+      const blob = await responseBlob.blob();
+      const formData = new FormData();
+      formData.append('file', blob, 'product_image.jpg');
+      // formData.append('prompt', finalPrompt || '');
 
-    setTimeout(() => {
-      teaFlowFinish();
-      setTimeout(() => {
-        setShowTeaFlowProgress(false);
-        if (uploadedImage) {
-          generateMockImages(uploadedImage)
-            .then((images: GeneratedImage[]) => {
-              setGeneratedImages(images);
-              setGenerationStatus('done');
-              setStage('done');
-              if (images.length > 0) setSelectedImage(images[0].id);
-            })
-            .catch(() => {
-              setGenerationStatus('idle');
-              setStage('copy_ready');
-              setErrorMessage('圖片生成失敗，請重試');
-              setTimeout(() => setErrorMessage(null), 3000);
-            });
-        }
-      }, 1200);
-    }, 6000);
+      const response = await fetch('/api/upload_and_generate', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        teaFlowFinish();
+        const newGeneratedImage: GeneratedImage = {
+          id: Date.now().toString(),
+          url: data.image_data,
+          alt: styleName
+        };
+        setTimeout(() => {
+          setShowTeaFlowProgress(false);
+          setGeneratedImages([newGeneratedImage]);
+          setGenerationStatus('done');
+          setStage('done');
+          setSelectedImage(newGeneratedImage.id);
+        }, 1200);
+      } else {
+        throw new Error(data.error || '圖片生成失敗');
+      }
+    } catch (error: any) {
+      teaFlowReset();
+      setShowTeaFlowProgress(false);
+      setErrorMessage(error.message);
+      setStage('copy_ready');
+      setGenerationStatus('idle');
+    }
   };
 
   const selectedCopyText = selectedCopyId

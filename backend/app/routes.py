@@ -3,8 +3,8 @@ from app.models import (
     db, Product, Tenant, MarketingContent, Users, Store,
     Ingredient, ProductComposition, PlatformToken, ContentImage, WeatherForecast
 )
-# from app.image_services import call_nano_banana_logic
-# from app.AI_services import generate_drink_post
+from app.image_services import call_nano_banana_logic
+from app.AI_services import generate_drink_post
 from datetime import datetime, timezone, timedelta, date
 import os
 import jwt

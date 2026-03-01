@@ -42,10 +42,10 @@ export function DashboardPage() {
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/weather', {
+        const response = await fetch('/api/weather', {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include', 
+          credentials: 'include',
         });
         const resJson = await response.json();
         if (resJson.status === 'success' && resJson.data && resJson.data.length > 0) {
@@ -58,7 +58,7 @@ export function DashboardPage() {
         console.error("無法取得天氣資料:", error);
       }
     };
-    fetchWeather(); 
+    fetchWeather();
   }, []);
 
   // 取得星期幾
@@ -93,7 +93,7 @@ export function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 auto-rows-fr">
-        
+
         {/* Card 1: 趨勢 */}
         <Card className="border-l-4 flex flex-col shadow-sm" style={{ borderLeftColor: 'var(--df-accent)' }}>
           <CardHeader className="pb-4">
@@ -141,9 +141,9 @@ export function DashboardPage() {
                   <div className="relative z-10">
                     <div className="text-5xl font-bold text-gray-800 mb-2">{weatherData.forecasts[selectedDayIdx].max_temp}°C</div>
                     <div className="text-base text-gray-600 font-medium flex items-center gap-1">
-                      {getWeatherIcon(weatherData.forecasts[selectedDayIdx].condition)} 
-                      {translateCondition(weatherData.forecasts[selectedDayIdx].condition)} 
-                      <span className="mx-1">·</span> 
+                      {getWeatherIcon(weatherData.forecasts[selectedDayIdx].condition)}
+                      {translateCondition(weatherData.forecasts[selectedDayIdx].condition)}
+                      <span className="mx-1">·</span>
                       降雨機率 {weatherData.forecasts[selectedDayIdx].rain_prob}%
                     </div>
                   </div>
@@ -152,20 +152,19 @@ export function DashboardPage() {
                 {/* 一週七天小圖示 */}
                 <div className="grid grid-cols-7 gap-1">
                   {weatherData.forecasts.map((day, idx) => (
-                    <button 
-                      key={idx} 
-                      onClick={() => setSelectedDayIdx(idx)} 
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedDayIdx(idx)}
                       // ⭐ 修改點：加高了 padding (py-3)，讓版面不擁擠
-                      className={`flex flex-col items-center justify-center py-3 rounded-lg border transition-all ${
-                        selectedDayIdx === idx 
-                          ? 'border-blue-400 bg-blue-50 shadow-sm' 
+                      className={`flex flex-col items-center justify-center py-3 rounded-lg border transition-all ${selectedDayIdx === idx
+                          ? 'border-blue-400 bg-blue-50 shadow-sm'
                           : 'border-transparent hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {/* ⭐ 修改點：放大星期幾，並加入日期 */}
                       <span className="text-sm font-medium text-gray-700 mb-0.5">{getWeekday(day.date)}</span>
                       <span className="text-[10px] text-gray-400 mb-2">{getShortDate(day.date)}</span>
-                      
+
                       <span className="text-xl mb-1">{getWeatherIcon(day.condition)}</span>
                       <span className="text-sm font-bold text-gray-800">{day.max_temp}°</span>
                     </button>
@@ -186,7 +185,7 @@ export function DashboardPage() {
               <div className="animate-pulse space-y-4 h-full flex flex-col justify-center">
                 <div className="h-32 bg-gray-200 rounded-xl w-full"></div>
                 <div className="grid grid-cols-7 gap-2">
-                  {[1,2,3,4,5,6,7].map(i => <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>)}
+                  {[1, 2, 3, 4, 5, 6, 7].map(i => <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>)}
                 </div>
               </div>
             )}
@@ -202,7 +201,7 @@ export function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-center pb-6">
-             <div className="space-y-6">
+            <div className="space-y-6">
               <div className="flex justify-between items-center text-base pb-3 border-b border-gray-100">
                 <span className="font-medium text-gray-700">草莓</span>
                 <span className="text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded">↑ 漲幅 15%</span>
