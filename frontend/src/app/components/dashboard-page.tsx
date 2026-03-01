@@ -42,10 +42,10 @@ export function DashboardPage() {
   useEffect(() => {
     const fetchWeather = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/weather', {
+        const response = await fetch('/api/weather', {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
-          credentials: 'include', 
+          credentials: 'include',
         });
         const resJson = await response.json();
         if (resJson.status === 'success' && resJson.data && resJson.data.length > 0) {
@@ -58,8 +58,8 @@ export function DashboardPage() {
         console.error("無法取得天氣資料:", error);
       }
     };
-    fetchWeather(); 
-  }, []);
+    fetchWeather();
+  }, []); 
 
   // 取得星期幾
   const getWeekday = (dateString) => {
@@ -150,23 +150,28 @@ export function DashboardPage() {
                 </div>
 
                 {/* 一週七天小圖示 */}
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-2">
                   {weatherData.forecasts.map((day, idx) => (
                     <button 
                       key={idx} 
                       onClick={() => setSelectedDayIdx(idx)} 
-                      // ⭐ 修改點：加高了 padding (py-3)，讓版面不擁擠
-                      className={`flex flex-col items-center justify-center py-3 rounded-lg border transition-all ${
+                      className={`flex flex-col items-center justify-center py-4 rounded-lg border transition-all ${
                         selectedDayIdx === idx 
-                          ? 'border-blue-400 bg-blue-50 shadow-sm' 
-                          : 'border-transparent hover:bg-gray-50'
+                          ? 'border-blue-400 bg-blue-50 shadow-sm scale-105' 
+                          : 'border-transparent bg-white hover:bg-gray-50'
                       }`}
                     >
-                      {/* ⭐ 修改點：放大星期幾，並加入日期 */}
-                      <span className="text-sm font-medium text-gray-700 mb-0.5">{getWeekday(day.date)}</span>
-                      <span className="text-[10px] text-gray-400 mb-2">{getShortDate(day.date)}</span>
+                      {/* 星期幾：加粗且字體變大 (text-base) */}
+                      <span className={`font-bold mb-1 ${selectedDayIdx === idx ? 'text-blue-600' : 'text-gray-700'} text-base`}>
+                        {getWeekday(day.date)}
+                      </span>
                       
-                      <span className="text-xl mb-1">{getWeatherIcon(day.condition)}</span>
+                      {/* 日期：清晰的 MM/DD (text-xs) */}
+                      <span className="text-xs text-gray-400 mb-2">
+                        {getShortDate(day.date)}
+                      </span>
+                      
+                      <span className="text-2xl mb-1">{getWeatherIcon(day.condition)}</span>
                       <span className="text-sm font-bold text-gray-800">{day.max_temp}°</span>
                     </button>
                   ))}

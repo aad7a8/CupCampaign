@@ -12,7 +12,6 @@ if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
 # -----------------------
 
-# 🚨 絕對不能寫 from app import app!
 from app import create_app
 from app.extensions import db  # 改從 extensions 直接拿 db 最安全
 from app.models import WeatherForecast 

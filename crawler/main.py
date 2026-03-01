@@ -4,7 +4,7 @@ from datetime import datetime
 from threading import Event
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 
 from spiders import news_spider, news_analyzer
 from spiders.weather_spider import WeatherSpider
@@ -66,19 +66,19 @@ def run_all():
 def main():
     logger.info("Crawler service starting...")
 
-    # Run once immediately on startup
+    # 1. 啟動時立刻跑一次 (Run once immediately on startup)
     run_all()
 
-    # Schedule daily runs
+    # 2. 設定每天凌晨 3 點的排程 (Schedule daily runs at 3 AM)
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         run_all,
-        trigger=IntervalTrigger(days=1),
+        trigger=CronTrigger(hour=3, minute=0),  # 這裡改為每天 03:00 執行
         id="daily_crawl",
         name="Daily crawl job",
     )
     scheduler.start()
-    logger.info("Scheduler started, next run in 24 hours")
+    logger.info("Scheduler started, scheduled to run daily at 03:00")
 
     # Keep process alive
     Event().wait()
