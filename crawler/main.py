@@ -35,14 +35,15 @@ def run_news_pipeline():
         logger.warning("No articles scraped, skipping analysis")
         return
 
-    # Step 2: Analyze news
+    # Step 2: Analyze news (clustering pipeline)
     input_file = f"/app/data/ettoday_{formatted_date}.json"
     try:
         result = asyncio.run(news_analyzer.run(input_file))
         if result:
             logger.info(
-                "News analysis complete: %d qualified articles",
-                result["stats"]["qualified"],
+                "News analysis complete: %d groups (%d passed filter)",
+                result["stats"]["num_groups"],
+                result["stats"]["passed_filter"],
             )
     except Exception:
         logger.exception("News analysis failed")
@@ -59,8 +60,8 @@ def run_weather_pipeline():
 
 def run_all():
     """Run all spiders."""
-    run_news_pipeline()
     run_weather_pipeline()
+    run_news_pipeline()
 
 
 def main():
