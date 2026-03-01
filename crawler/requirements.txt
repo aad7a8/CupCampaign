@@ -1,6 +1,16 @@
+flask
+flask_sqlalchemy
+flask_migrate
+flask_cors
+flask_bcrypt
+pyjwt
 requests
+sqlalchemy
+psycopg2-binary
 beautifulsoup4
 python-dotenv
+minio
+google-genai
 apscheduler
 langchain>=1.0
 langchain-google-genai>=4.0

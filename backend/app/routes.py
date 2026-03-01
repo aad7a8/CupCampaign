@@ -1,11 +1,11 @@
 from flask import jsonify, request, make_response
 from app.models import (
     db, Product, Tenant, MarketingContent, Users, Store,
-    Ingredient, ProductComposition, PlatformToken, ContentImage
+    Ingredient, ProductComposition, PlatformToken, ContentImage, WeatherForecast
 )
-from app.image_services import call_nano_banana_logic
-from app.AI_services import generate_drink_post
-from datetime import datetime, timezone, timedelta
+# from app.image_services import call_nano_banana_logic
+# from app.AI_services import generate_drink_post
+from datetime import datetime, timezone, timedelta, date
 import os
 import jwt
 import uuid
@@ -525,3 +525,58 @@ def register_routes(app):
             })
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
+
+    # ==========================================
+    # Weather API
+    # ==========================================
+    @app.route('/api/weather', methods=['GET'])
+    def get_weather():
+        """ 獲取使用者所屬門市縣市的一週天氣預報 """
+        # 1. 身分驗證 (從 Cookie 讀取 JWT)
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({"status": "error", "message": "請先登入"}), 401
+        
+        try:
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            user_id = decoded.get("user")
+        except Exception:
+            return jsonify({"status": "error", "message": "認證失效，請重新登入"}), 401
+
+        # 2. 取得使用者的門市與城市資訊 (注意：您的 Model 是 Users 不是 User)
+        user = Users.query.get(user_id)
+        if not user or not user.store:
+            return jsonify({"status": "error", "message": "找不到使用者的門市資料"}), 404
+        
+        user_city = user.store.location_city
+
+        # 3. 查詢該城市的天氣預報 (今天及未來的預報)
+        today = date.today()
+        try:
+            # 篩選條件：符合門市所在縣市，且日期大於等於今天，按日期遞增排序
+            forecasts = WeatherForecast.query.filter(
+                WeatherForecast.city_name == user_city,
+                WeatherForecast.forecast_date >= today
+            ).order_by(WeatherForecast.forecast_date.asc()).all()
+
+            # 4. 將結果轉換為 JSON 格式
+            weather_data = [
+                {
+                    "date": f.forecast_date.strftime("%Y-%m-%d"),
+                    "condition": f.condition,
+                    "min_temp": f.min_temp,
+                    "max_temp": f.max_temp,
+                    "rain_prob": f.rain_prob,
+                    "recommendation": f.recommendation
+                } for f in forecasts
+            ]
+
+            return jsonify({
+                "status": "success",
+                "city": user_city,
+                "data": weather_data
+            })
+
+        except Exception as e:
+            print(f"Weather Fetch Error: {e}")
+            return jsonify({"status": "error", "message": "無法讀取天氣資料"}), 500

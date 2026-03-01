@@ -33,7 +33,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-cup_campaign_db}
     volumes:
-      - ./infra/postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres_data:/var/lib/postgresql
     ports:
       - "5432:5432"
     healthcheck:
@@ -66,6 +66,7 @@ services:
       - .env
     volumes:
       - ./crawler/data:/app/data
+      - ./backend:/app/backend
     depends_on:
       postgres:
         condition: service_healthy
