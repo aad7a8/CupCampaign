@@ -23,7 +23,7 @@ def call_nano_banana_logic(file):
         )
 
         response = client.models.generate_content(
-            model="gemini-3-pro-image-preview",
+            model="gemini-2.5-flash-image",
             contents=[final_prompt, input_image]
         )
         

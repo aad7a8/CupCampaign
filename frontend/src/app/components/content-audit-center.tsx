@@ -276,6 +276,57 @@ export function ContentAuditCenter() {
     }
   };
 
+  const handleConfirmPublish = async () => {
+  if (!selectedGeneratedImageUrl) {
+    setErrorMessage('請先選擇要發佈的圖片');
+    return;
+  }
+
+  try {
+    setStage('image_generating'); // 藉用此狀態顯示 Loading 
+    setErrorMessage(null);
+
+    // 1. 將 Blob URL 轉換為 Base64
+    const response = await fetch(selectedGeneratedImageUrl);
+    const blob = await response.blob();
+    
+    const reader = new FileReader();
+    reader.readAsDataURL(blob);
+    reader.onloadend = async () => {
+      const base64data = reader.result;
+
+      // 2. 準備傳送給後端的資料
+      const payload = {
+        product_name: selectedProduct,
+        final_text: selectedCopyText,
+        image_data: base64data,
+        platform: publishPlatform, // 傳送目前選中的平台：'ig', 'fb', 或 'sync'
+      };
+
+      const res = await fetch('/api/content/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await res.json();
+      
+      if (result.status === 'success') {
+        // 可以加上一個成功提示，例如使用 Toast 或簡單的 alert
+        alert(result.message); 
+        setStage('done');
+      } else {
+        setErrorMessage(result.message || '發佈失敗，請稍後再試');
+        setStage('done');
+      }
+    };
+  } catch (error) {
+    console.error('Publish Error:', error);
+    setErrorMessage('發佈過程中發生連線錯誤');
+    setStage('done');
+  }
+};
+
   const selectedCopyText = selectedCopyId
     ? copyCandidates.find(c => c.id === selectedCopyId)?.editedText ?? copyCandidates.find(c => c.id === selectedCopyId)?.content ?? ''
     : '';
@@ -516,14 +567,21 @@ export function ContentAuditCenter() {
               </div>
             </div>
 
-            <Button
-              className="w-full h-[42px] text-md font-medium shadow-sm hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: 'var(--df-accent)', color: 'white' }}
-              disabled={!selectedImage || teaFlowStatus === 'running'}
-            >
-              <Send className="w-5 h-5 mr-2" />
-              確認發布
-            </Button>
+          <Button
+            className="w-full h-[42px] text-md font-medium shadow-sm hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: 'var(--df-accent)', color: 'white' }}
+            // --- 修改處：綁定點擊事件 ---
+            onClick={handleConfirmPublish}
+            // --- 修改處：調整 Disable 邏輯 ---
+            disabled={!selectedImage || teaFlowStatus === 'running' || stage === 'image_generating'}
+          >
+            {/* --- 修改處：增加 Loading 圖示 --- */}
+            {stage === 'image_generating' ? (
+              <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> 處理中...</>
+            ) : (
+              <><Send className="w-5 h-5 mr-2" /> 確認發布</>
+            )}
+          </Button>
           </div>
         </div>
       </div>

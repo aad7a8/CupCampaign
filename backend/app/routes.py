@@ -1,4 +1,4 @@
-from flask import jsonify, request, make_response
+from flask import jsonify, request, make_response, current_app
 from app.models import (
     db, Product, Tenant, MarketingContent, Users, Store,
     Ingredient, ProductComposition, PlatformToken, ContentImage, WeatherForecast
@@ -6,12 +6,15 @@ from app.models import (
 from app.image_services import call_nano_banana_logic
 from app.AI_services import generate_drink_post
 from datetime import datetime, timezone, timedelta, date
+from app.publish_workflow import run_workflow, auto_post_to_ig
 import os
 import jwt
 import uuid
 import io
 import json
 import requests
+import base64
+import threading
 
 SECRET_KEY = os.getenv("MY_APP_SECRET_KEY", "your_fallback_key")
 
@@ -341,94 +344,57 @@ def register_routes(app):
     # ==========================================
     # AI Image Generation API
     # ==========================================
-    @app.route('/api/content/generate-image', methods=['POST'])
-    def handle_generate_image():
+    @app.route('/api/content/publish', methods=['POST'])
+    def handle_publish_post():
+        # --- 1. 驗證登入狀態 ---
         token = request.cookies.get('access_token')
         if not token:
             return jsonify({"status": "error", "message": "請先登入"}), 401
+        
         try:
+            # 解碼時可加入 options 避開某些警告，但建議 .env 的 SECRET_KEY 設長一點
             decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
             user_record = Users.query.get(decoded.get("user"))
             if not user_record:
-                return jsonify({"status": "error", "message": "用戶不存在"}), 404
-        except Exception:
-            return jsonify({"status": "error", "message": "認證失效"}), 401
-
-        data = request.json
-        if not data:
-            return jsonify({"status": "error", "message": "請求格式錯誤"}), 400
-
-        ref_image_url = data.get('image_url')
-        image_prompt  = data.get('image_prompt', '一張美味的飲品宣傳照')
-        if not ref_image_url:
-            return jsonify({"status": "error", "message": "缺少參考圖片網址"}), 400
-
-        try:
-            generated_image_url = call_nano_banana(
-                base_image_url=ref_image_url,
-                prompt=image_prompt
-            )
-            return jsonify({
-                "status": "success",
-                "generated_image_url": generated_image_url,
-                "prompt_used": image_prompt
-            })
-        except Exception as e:
-            return jsonify({"status": "error", "message": f"AI 繪圖失敗: {str(e)}"}), 500
-
-    # ==========================================
-    # Publish & History API
-    # ==========================================
-    @app.route('/api/content/publish', methods=['POST'])
-    def handle_publish_post():
-        token = request.cookies.get('access_token')
-        if not token:
-            return jsonify({"status": "error", "message": "請先登入"}), 401
-        try:
-            decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-            user_record = Users.query.get(decoded.get("user"))
+                return jsonify({"status": "error", "message": "找不到使用者"}), 404
             current_store_id = user_record.store_id
         except Exception:
             return jsonify({"status": "error", "message": "認證失效"}), 401
 
+        # --- 2. 解析前端資料 ---
         data = request.json
-        final_text = data.get('final_text')
-        target_platform = data.get('platform')
         product_name = data.get('product_name')
-        ai_minio_url = data.get('ai_minio_url')
-        prompt_used = data.get('prompt_used', '')
+        final_text = data.get('final_text')
+        platform = data.get('platform', 'instagram')
+        image_base64 = data.get('image_data') 
 
-        if not final_text or not target_platform:
-            return jsonify({"status": "error", "message": "文案內容與平台資訊不能為空"}), 400
+        if not final_text or not image_base64:
+            return jsonify({"status": "error", "message": "文案或圖片數據缺失"}), 400
 
         try:
-            new_content = MarketingContent(
-                store_id=current_store_id,
-                generated_text=final_text,
-                product_name=product_name,
-                platform=target_platform,
-                created_at=datetime.now(timezone.utc)
+            # --- 3. 處理圖片數據 ---
+            if "base64," in image_base64:
+                image_base64 = image_base64.split("base64,")[1]
+            image_binary = base64.b64decode(image_base64)
+
+            # --- 4. 非同步執行完整 Workflow ---
+            # 獲取 Flask App 實體，供 Thread 內部使用 App Context
+            app_instance = current_app._get_current_object()
+            
+            thread = threading.Thread(
+                target=run_workflow, 
+                # 參數順序：app, 產品名, 文案, 圖片, 門市ID, 平台
+                args=(app_instance, product_name, final_text, image_binary, current_store_id, platform)
             )
-            db.session.add(new_content)
-            db.session.flush()
+            thread.start()
 
-            if ai_minio_url:
-                new_image = ContentImage(
-                    content_id=new_content.id,
-                    minio_url=ai_minio_url,
-                    prompt_used=prompt_used
-                )
-                db.session.add(new_image)
-            db.session.commit()
             return jsonify({
-                "status": "success",
-                "message": f"文案已成功存入歷史紀錄並發布至 {target_platform}！",
-                "content_id": new_content.id
+                "status": "success", 
+                "message": "內容已進入處理程序，系統正在進行上傳與發布。"
             })
-        except Exception as e:
-            db.session.rollback()
-            return jsonify({"status": "error", "message": f"儲存失敗: {str(e)}"}), 500
 
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"發布請求失敗: {str(e)}"}), 500
     @app.route('/api/content/history', methods=['GET'])
     def get_history():
         token = request.cookies.get('access_token')
