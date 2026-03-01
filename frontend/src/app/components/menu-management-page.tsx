@@ -44,40 +44,45 @@ export function MenuManagementPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [sortBy, setSortBy] = useState('updated');
 
-  // 從 localStorage 載入資料
-  // 新用戶註冊後，如果沒有資料，應該顯示空狀態而不是預設資料
+// 從後端 API 載入資料
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          // 將 updatedAt 字串轉回 Date
-          const items = parsed.map((item: any) => ({
-            ...item,
-            updatedAt: new Date(item.updatedAt),
+    const fetchMenuItems = async () => {
+      try {
+        const response = await fetch('/api/admin/products', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // 確保夾帶 Cookie (JWT token)
+        });
+        
+        const resJson = await response.json();
+        
+        if (resJson.status === 'success' && resJson.data) {
+          // 將後端資料結構對應到前端 MenuItem 介面
+          const items = resJson.data.map((item) => ({
+            id: String(item.id),
+            name: item.name,
+            category: item.category,
+            price: item.price,
+            // 資料庫目前沒有 status 欄位，預設爬蟲抓下來的都為 'active' (上架)
+            status: 'active', 
+            // 確保跨瀏覽器能正確解析時間字串 (將 YYYY-MM-DD HH:MM:SS 轉為 YYYY-MM-DDTHH:MM:SS)
+            updatedAt: item.scraped_at ? new Date(item.scraped_at.replace(' ', 'T')) : new Date(),
           }));
-          // 如果有保存的資料，使用保存的資料；否則顯示空狀態
+          
           setMenuItems(items);
-        } catch {
-          // 解析失敗時顯示空狀態
+        } else {
+          toast.error(resJson.message || '無法取得菜單資料');
           setMenuItems([]);
         }
-      } else {
-        // 沒有保存的資料時顯示空狀態（新用戶）
+      } catch (error) {
+        console.error('Error fetching menu items:', error);
+        toast.error('網路連線錯誤，無法取得菜單');
         setMenuItems([]);
       }
-    } catch (error) {
-      console.error('Error loading menu items:', error);
-      // 發生錯誤時顯示空狀態
-      setMenuItems([]);
-    }
-  }, []);
+    };
 
-  // 儲存到 localStorage
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(menuItems));
-  }, [menuItems]);
+    fetchMenuItems();
+  }, []);
 
   // 過濾與排序後的資料
   const filteredAndSortedItems = useMemo(() => {

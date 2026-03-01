@@ -47,19 +47,17 @@ def create_app():
     register_routes(app)
 
     # ==========================================
-    # 核心修改：自動重建資料表並初始化資料
+    # 自動重建資料表並初始化資料 (合併區塊)
     # ==========================================
     with app.app_context():
-        from app.models import HolidayCalendar
+        from app.models import HolidayCalendar, Tenant
         from sqlalchemy import text
         
+        # 確保基礎表格存在
+        db.create_all() 
+
+        # --- 1. 初始化節慶資料 ---
         try:
-            # 1. 檢查表格是否存在且欄位是否正確 (最簡單做法：檢查新欄位是否存在)
-            # 如果你想要強制同步所有欄位，開發階段最快的方法是檢查 count 失敗就重建
-            # 這裡我們用「如果 HolidayCalendar 沒資料就初始化」作為基礎
-            
-            db.create_all() # 確保基礎表格存在
-            
             if HolidayCalendar.query.count() == 0:
                 print("📥 偵測到空資料庫，開始初始化節慶資料與 View...")
                 
@@ -103,7 +101,39 @@ def create_app():
 
         except Exception as e:
             db.session.rollback()
-            print(f"⚠️ 初始化檢查提示: {e}")
-            # 如果是因為欄位對不起來（例如找不到 hashtag），可以考慮在這裡印出建議 DROP SCHEMA 的提示
+            print(f"⚠️ 節慶初始化檢查提示: {e}")
+
+        # --- 2. 初始化手搖飲品牌資料 ---
+        try:
+            target_brands = [
+                '功夫茶', '大茗本位製茶堂', '得正', '先喝道', 
+                '清心福全', '迷克夏', 'comebuy', '龜記', 
+                '五十嵐', 'coco都可'
+            ]
+
+            print("🏢 檢查品牌資料初始化...")
+            
+            added_count = 0
+            for brand_name in target_brands:
+                # 先檢查資料庫有沒有這個品牌
+                existing_tenant = Tenant.query.filter_by(name=brand_name).first()
+                
+                # 如果沒有，才把它加進去
+                if not existing_tenant:
+                    new_tenant = Tenant(name=brand_name, is_registered=True)
+                    db.session.add(new_tenant)
+                    added_count += 1
+            
+            # 最後一次過提交所有變更
+            db.session.commit()
+            
+            if added_count > 0:
+                print(f"✅ 成功新增 {added_count} 家品牌！目前共有 {Tenant.query.count()} 家品牌。")
+            else:
+                print(f"✅ 品牌皆已存在，無須新增。目前共有 {Tenant.query.count()} 家品牌。")
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"⚠️ 品牌初始化提示: {e}")
 
     return app

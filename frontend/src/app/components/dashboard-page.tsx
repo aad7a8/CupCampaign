@@ -39,6 +39,7 @@ export function DashboardPage() {
   }, []);
 
   // --- 天氣 Effect ---
+// --- 天氣 Effect ---
   useEffect(() => {
     const fetchWeather = async () => {
       try {
@@ -48,10 +49,24 @@ export function DashboardPage() {
           credentials: 'include',
         });
         const resJson = await response.json();
+        
         if (resJson.status === 'success' && resJson.data && resJson.data.length > 0) {
+          // 1. 取得「今天」的凌晨 00:00:00 時間戳作為比較基準
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          // 2. 過濾資料
+          const validForecasts = resJson.data
+            .filter(day => {
+              const forecastDate = new Date(day.date);
+              forecastDate.setHours(0, 0, 0, 0);
+              return forecastDate >= today; // 只保留「今天」及「未來」的日期
+            })
+            .slice(0, 7); // 強制截斷，只取前 7 天，確保不會換行
+
           setWeatherData({
             city: resJson.city,
-            forecasts: resJson.data
+            forecasts: validForecasts
           });
         }
       } catch (error) {
@@ -59,7 +74,7 @@ export function DashboardPage() {
       }
     };
     fetchWeather();
-  }, []); 
+  }, []);
 
   // 取得星期幾
   const getWeekday = (dateString) => {

@@ -8,6 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 
 from spiders import news_spider, news_analyzer
 from spiders.weather_spider import WeatherSpider
+from spiders.beverage_spider import run_beverage_pipeline
 
 logging.basicConfig(
     level=logging.INFO,
@@ -57,10 +58,20 @@ def run_weather_pipeline():
     except Exception:
         logger.exception("Weather pipeline failed")
 
+def run_beverage_task():
+    """Run beverage menu scrape and update."""
+    logger.info("=== Starting beverage pipeline ===")
+    try:
+        run_beverage_pipeline()
+        logger.info("Beverage pipeline complete")
+    except Exception:
+        logger.exception("Beverage pipeline failed")
+
 def run_all():
     """Run all spiders."""
     run_news_pipeline()
     run_weather_pipeline()
+    run_beverage_task()
 
 
 def main():
