@@ -4,42 +4,61 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/ca
 import { Badge } from '@/app/components/ui/badge';
 import { Progress } from '@/app/components/ui/progress';
 
-// --- 節慶檔期資料 ---
-const FULL_CALENDAR_2026 = [
-  { name: "2026 元旦連假", date: "2026-01-01T00:00:00", type: "holiday", note: "3天連假" },
-  { name: "西洋情人節", date: "2026-02-14T00:00:00", type: "marketing", note: "商機" },
-  { name: "農曆春節 (9天)", date: "2026-02-16T00:00:00", type: "holiday", note: "除夕前一日開始" },
-  { name: "228 和平紀念日", date: "2026-02-28T00:00:00", type: "holiday", note: "3天連假" },
-  { name: "兒童清明連假", date: "2026-04-03T00:00:00", type: "holiday", note: "4天連假" },
-  { name: "五一勞動節", date: "2026-05-01T00:00:00", type: "holiday", note: "3天連假" },
-];
-
 export function DashboardPage() {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [calendarData, setCalendarData] = useState([]);
   const [weatherData, setWeatherData] = useState(null);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
-  // --- 檔期 Effect ---
+// --- 檔期 Effect 1：從 API 獲取資料 ---
   useEffect(() => {
+    const fetchHolidays = async () => {
+      try {
+        // 請確保這裡的 API 路徑與你的後端路由一致
+        const response = await fetch('/api/holidays', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        const resJson = await response.json();
+        
+        if (resJson.status === 'success' && resJson.data) {
+          setCalendarData(resJson.data);
+        }
+      } catch (error) {
+        console.error("無法取得節慶檔期資料:", error);
+      }
+    };
+    fetchHolidays();
+  }, []);
+
+  // --- 檔期 Effect 2：計算倒數天數並定時更新 ---
+  useEffect(() => {
+    if (calendarData.length === 0) return;
+
     const calculateEvents = () => {
       const now = new Date().getTime();
-      const nextEvents = FULL_CALENDAR_2026
-        .filter(event => new Date(event.date).getTime() > now)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      const nextEvents = calendarData
+        .filter(event => new Date(event.target_date).getTime() > now) // 注意：資料庫欄位為 target_date
+        .sort((a, b) => new Date(a.target_date).getTime() - new Date(b.target_date).getTime())
         .slice(0, 2)
         .map(event => ({
-          ...event,
-          daysLeft: Math.floor((new Date(event.date).getTime() - now) / (1000 * 60 * 60 * 24))
+          name: event.holiday_name,       // 對應 DB: holiday_name
+          date: event.target_date,        // 對應 DB: target_date
+          type: event.category_type,      // 對應 DB: category_type
+          note: event.note,               // 對應 DB: note
+          // 計算剩餘天數 (無條件進位，確保當天不會顯示 0 天而是顯示正確天數)
+          daysLeft: Math.ceil((new Date(event.target_date).getTime() - now) / (1000 * 60 * 60 * 24))
         }));
       setUpcomingEvents(nextEvents);
     };
+
     calculateEvents();
+    // 每分鐘更新一次倒數
     const timer = setInterval(calculateEvents, 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [calendarData]);
 
   // --- 天氣 Effect ---
-// --- 天氣 Effect ---
   useEffect(() => {
     const fetchWeather = async () => {
       try {
@@ -239,12 +258,18 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Card 4: 近期檔期 */}
-        <Card className="border-l-4 border-purple-400 flex flex-col shadow-sm">
+        {/* Card 4: 近期檔期倒數 */}
+          <Card className="border-l-4 border-purple-400 flex flex-col shadow-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-purple-400" />
-              近期檔期倒數
+            <CardTitle className="text-lg flex items-center justify-between text-gray-800">
+              <div className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-purple-400" />
+                近期檔期倒數
+              </div>
+              {/* ⭐ 添加右上角徽章 ⭐ */}
+              <Badge variant="outline" className="text-sm border-purple-200 text-purple-600">
+                共 {upcomingEvents.length} 個進行中
+              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-center pb-6">
@@ -257,7 +282,8 @@ export function DashboardPage() {
                         {event.name}
                       </span>
                       <Badge variant="outline" className={`text-sm h-6 px-2 rounded-sm ${event.type === 'holiday' ? 'text-red-500 border-red-200 bg-red-50' : 'text-blue-500 border-blue-200 bg-blue-50'}`}>
-                        {event.type === 'holiday' ? '連假' : '行銷'}
+                        {/* ⭐ 徽章中添加日期 ⭐ */}
+                        {event.type === 'holiday' ? '連假' : '行銷'} {getShortDate(event.date)}
                       </Badge>
                     </div>
                     <div className="flex items-baseline gap-1">
@@ -269,6 +295,13 @@ export function DashboardPage() {
                   </div>
                   {index === 0 && (
                     <Progress value={Math.max(10, 100 - (event.daysLeft / 30 * 100))} className="h-2 bg-purple-100" />
+                  )}
+                  {/* ⭐ 添加備註 ⭐ */}
+                  {event.note && (
+                    <p className="text-xs text-purple-500 font-medium flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" />
+                      備註：{event.note}
+                    </p>
                   )}
                 </div>
               )) : (

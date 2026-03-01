@@ -1,7 +1,7 @@
 from flask import jsonify, request, make_response
 from app.models import (
     db, Product, Tenant, MarketingContent, Users, Store,
-    Ingredient, PlatformToken, ContentImage, WeatherForecast
+    Ingredient, PlatformToken, ContentImage, WeatherForecast, HolidayCalendar
 )
 # from app.image_services import call_nano_banana_logic
 # from app.AI_services import generate_drink_post
@@ -568,3 +568,43 @@ def register_routes(app):
         except Exception as e:
             print(f"Weather Fetch Error: {e}")
             return jsonify({"status": "error", "message": "無法讀取天氣資料"}), 500
+
+    # ==========================================
+    # Holiday Calendar API
+    # ==========================================
+    @app.route('/api/holidays', methods=['GET'])
+    def get_holidays():
+        """ 獲取系統內建的節慶與行銷檔期 """
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({"status": "error", "message": "請先登入"}), 401
+        
+        try:
+            # 驗證 Token 是否有效
+            jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except Exception:
+            return jsonify({"status": "error", "message": "認證失效，請重新登入"}), 401
+
+        try:
+            # 撈取所有檔期，並以日期由近到遠排序
+            holidays = HolidayCalendar.query.order_by(HolidayCalendar.target_date.asc()).all()
+
+            holiday_data = [
+                {
+                    "id": h.id,
+                    "holiday_name": h.holiday_name,
+                    # 將 datetime 格式化為前端可解析的 ISO 格式字串
+                    "target_date": h.target_date.strftime("%Y-%m-%dT00:00:00") if h.target_date else None,
+                    "category_type": h.category_type,
+                    "note": h.note
+                } for h in holidays
+            ]
+
+            return jsonify({
+                "status": "success",
+                "data": holiday_data
+            })
+
+        except Exception as e:
+            print(f"Holiday Fetch Error: {e}")
+            return jsonify({"status": "error", "message": "無法讀取節慶檔期資料"}), 500
