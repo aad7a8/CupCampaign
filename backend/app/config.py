@@ -5,15 +5,26 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Config:
-    # 組合連線字串：postgresql://使用者:密碼@主機:埠/資料庫名稱
-    # 這裡的變數名稱要對應到 .env 裡的 key
+    # 使用 getenv 的第二個參數作為預設值，防止 None 導致字串拼接出錯
+    DB_USER = os.getenv('DB_USER', 'postgres')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', 'postgres')
+    DB_HOST = os.getenv('DB_HOST', 'postgres')  # 預設對應 Docker 服務名
+    DB_PORT = os.getenv('DB_PORT', '5432')
+    DB_NAME = os.getenv('DB_NAME', 'cup_campaign_db')
+
     SQLALCHEMY_DATABASE_URI = (
-        f"postgresql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}"
-        f"@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+        f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     )
     
-    # 關閉 SQLAlchemy 的追蹤修改功能，以節省記憶體並提升效能
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # 預留空間：之後若有 OpenAI 或 Flux 的 API Key 也可以加在這裡
-    # OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+    # 💡 也可以把 SECRET_KEY 放在這裡管理
+    SECRET_KEY = os.getenv("MY_APP_SECRET_KEY", "default_secret_key")
+
+
+    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
+    # 這裡抓取團隊 .env 中的管理員帳密
+    MINIO_ACCESS_KEY = os.getenv("MINIO_ROOT_USER", "minioadmin") 
+    MINIO_SECRET_KEY = os.getenv("MINIO_ROOT_PASSWORD", "minioadmin")
+    MINIO_BUCKET_NAME = os.getenv("MINIO_BUCKET_NAME", "marketing-images")
+    MINIO_EXTERNAL_URL = os.getenv("MINIO_EXTERNAL_URL", "http://localhost:9000")

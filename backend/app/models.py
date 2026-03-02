@@ -1,6 +1,6 @@
 # models.py
 from datetime import datetime
-from app.extensions import db, bcrypt
+from extensions import db, bcrypt 
 
 # 1. 品牌表 (Tenant)
 class Tenant(db.Model):
@@ -51,45 +51,48 @@ class Product(db.Model):
     scraped_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     # 配方關聯
-    compositions = db.relationship('ProductComposition', backref='product', lazy=True, cascade="all, delete-orphan")
+    # compositions = db.relationship('ProductComposition', backref='product', lazy=True, cascade="all, delete-orphan")
 
 # 5. 原物料表 (Ingredient)
 class Ingredient(db.Model):
     __tablename__ = 'ingredient'
     id = db.Column(db.Integer, primary_key=True)
-    tenant_id = db.Column(db.Integer, db.ForeignKey('tenant.id'), nullable=False)
+    # tenant_id = db.Column(db.Integer, db.ForeignKey('tenant.id'), nullable=False)
     name = db.Column(db.String(100), nullable=False)
 
 # 6. 飲品組成表 (ProductComposition)
-class ProductComposition(db.Model):
-    __tablename__ = 'product_composition'
-    id = db.Column(db.Integer, primary_key=True)
-    product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
-    ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredient.id'), nullable=False)
+# class ProductComposition(db.Model):
+#     __tablename__ = 'product_composition'
+#     id = db.Column(db.Integer, primary_key=True)
+#     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=False)
+#     ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredient.id'), nullable=False)
     
-    ingredient = db.relationship('Ingredient')
+#     ingredient = db.relationship('Ingredient')
 
-# 7. 行銷文案表 (MarketingContent)
+# 6. 行銷文案表 (MarketingContent)
 class MarketingContent(db.Model):
     __tablename__ = 'marketing_content'
     id = db.Column(db.Integer, primary_key=True)
     store_id = db.Column(db.Integer, db.ForeignKey('store.id'), nullable=False)
-    generated_text = db.Column(db.Text, nullable=False)
-    # image_url = db.Column(db.String(500), nullable=True)
+    # upload_url = db.Column(db.String(500), nullable=True)
     # status = db.Column(db.String(20), default='draft')
     platform = db.Column(db.String(50), nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     product_name = db.Column(db.String(100), nullable=True)
+    final_text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     # 妳原本有的關聯
     product_id = db.Column(db.Integer, db.ForeignKey('product.id'), nullable=True)
     product = db.relationship('Product', backref='contents')
+    # 建立與圖片的關聯，方便產圖後直接查詢
+    images = db.relationship('ContentImage', backref='marketing_content', lazy=True, cascade="all, delete-orphan")
 
+# 7.圖片儲存表
 class ContentImage(db.Model):
     __tablename__ = 'content_image'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     content_id = db.Column(db.Integer, db.ForeignKey('marketing_content.id'), nullable=False)
     minio_url = db.Column(db.String(255), nullable=False)
-    prompt_used = db.Column(db.Text)
+    # prompt_used = db.Column(db.Text)
 
 # 8. 平台 Token 表 (PlatformToken)
 class PlatformToken(db.Model):
@@ -107,18 +110,19 @@ class PlatformToken(db.Model):
 
 
 # 9. 天氣預報表 (WeatherForecast)
-class WeatherForecast(db.Model):
-    __tablename__ = 'weather_forecast'
+class WeatherCache(db.Model):
+    __tablename__ = 'weather_cache'
 
     id = db.Column(db.Integer, primary_key=True)
     city_name = db.Column(db.String(50), nullable=False)
-    forecast_date = db.Column(db.Date, nullable=False)
+    # forecast_date = db.Column(db.Date, nullable=False)
     condition = db.Column(db.String(50))
-    min_temp = db.Column(db.Integer)
-    max_temp = db.Column(db.Integer)
-    rain_prob = db.Column(db.Integer)
-    recommendation = db.Column(db.String(100))
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    temperature = db.Column(db.Integer)
+    # min_temp = db.Column(db.Integer)
+    # max_temp = db.Column(db.Integer)
+    # rain_prob = db.Column(db.Integer)
+    # recommendation = db.Column(db.String(100))
+    recorded_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # --- 建立複合唯一限制條件 (Unique Constraint) ---
     __table_args__ = (
@@ -149,17 +153,20 @@ class ExternalTrends(db.Model):
     __tablename__ = 'external_trends'
 
     id = db.Column(db.Integer, primary_key=True)
-    source_type = db.Column(db.String(50))
-    content_summary = db.Column(db.Text)
-    recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    hashtag = db.Column(db.String(20))
+    title = db.Column(db.String(50))
+    summary = db.Column(db.Text)
+    final_score = db.Column(db.Float)
+    mention_count = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-# 7. 價格追蹤表 (PriceHistory)
+# 12. 價格追蹤表 (PriceHistory)
 class PriceHistory(db.Model):
     __tablename__ = 'price_history'
 
     id = db.Column(db.Integer, primary_key=True)
-    ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredient.id'), nullable=False)
+    # ingredient_id = db.Column(db.Integer, db.ForeignKey('ingredient.id'), nullable=False)
     market_price = db.Column(db.Numeric(10, 2))
     change_rate = db.Column(db.Numeric(5, 2))
     recorded_at = db.Column(db.DateTime, default=datetime.utcnow)
