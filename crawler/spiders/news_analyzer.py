@@ -229,18 +229,19 @@ MAX_CLUSTERING_RETRIES = 3
 # Chain Builders
 # ============================================================
 
-def _build_llm(model: str):
+def _build_llm(model: str, timeout: int = 120):
     return init_chat_model(
         model=model,
         model_provider="google_genai",
         max_retries=3,
+        timeout=timeout,
     )
 
 
 def _build_chains():
     llm_filter = _build_llm(FILTER_MODEL)
     llm_summary = _build_llm(SUMMARY_MODEL)
-    llm_cluster = _build_llm(CLUSTERING_MODEL)
+    llm_cluster = _build_llm(CLUSTERING_MODEL, timeout=1200)
     llm_group = _build_llm(GROUP_SUMMARY_MODEL)
 
     filter_chain = (
