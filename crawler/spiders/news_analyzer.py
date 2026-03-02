@@ -11,6 +11,7 @@ Pipeline:
 """
 
 import os
+import sys
 import json
 import asyncio
 import logging
@@ -18,6 +19,15 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 from langchain.chat_models import init_chat_model
 from langchain_core.prompts import ChatPromptTemplate
+
+# --- Flask / DB imports ---
+backend_path = "/app/backend"
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
+from app import create_app
+from app.extensions import db
+from app.models import ExternalTrends
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +233,28 @@ CLUSTERING_MODEL = "gemini-3.1-pro-preview"
 GROUP_SUMMARY_MODEL = "gemini-2.5-flash-lite"
 FILTER_VOTES = 3
 MAX_CLUSTERING_RETRIES = 3
+LLM_RETRY_ATTEMPTS = 10
+LLM_RETRY_INTERVAL = 60  # seconds
+
+
+# ============================================================
+# Retry Helper
+# ============================================================
+
+async def _ainvoke_with_retry(chain, params: dict, label: str = "") -> object:
+    """Invoke a chain with retry on failure (1-min interval, 10 attempts)."""
+    for attempt in range(1, LLM_RETRY_ATTEMPTS + 1):
+        try:
+            return await chain.ainvoke(params)
+        except Exception as e:
+            if attempt == LLM_RETRY_ATTEMPTS:
+                logger.error("[%s] All %d retry attempts failed: %s", label, LLM_RETRY_ATTEMPTS, e)
+                raise
+            logger.warning(
+                "[%s] Attempt %d/%d failed: %s — retrying in %ds...",
+                label, attempt, LLM_RETRY_ATTEMPTS, e, LLM_RETRY_INTERVAL,
+            )
+            await asyncio.sleep(LLM_RETRY_INTERVAL)
 
 
 # ============================================================
@@ -273,10 +305,10 @@ async def _filter_one_vote(
 ) -> FilterResponse | None:
     async with sem:
         try:
-            return await chain.ainvoke({
+            return await _ainvoke_with_retry(chain, {
                 "title": article["title"],
                 "story": article.get("story", ""),
-            })
+            }, label="Filter")
         except Exception as e:
             logger.warning("[Filter] Error: %s... %s", article["title"][:30], e)
             return None
@@ -325,10 +357,10 @@ async def _summarize_one(
 ) -> dict | None:
     async with sem:
         try:
-            result: SummaryResponse = await chain.ainvoke({
+            result: SummaryResponse = await _ainvoke_with_retry(chain, {
                 "title": article["title"],
                 "story": article.get("story", ""),
-            })
+            }, label="Summary")
             return {
                 "id": article["id"],
                 "who": result.who,
@@ -390,10 +422,10 @@ async def _run_clustering(
 
     for attempt in range(MAX_CLUSTERING_RETRIES):
         try:
-            result: ClusteringResponse = await chain.ainvoke({
+            result: ClusteringResponse = await _ainvoke_with_retry(chain, {
                 "total_count": len(summaries),
                 "news_json": news_json,
-            })
+            }, label="Clustering")
             last_result = result
         except Exception as e:
             logger.warning("[Clustering] Attempt %d error: %s", attempt + 1, e)
@@ -453,12 +485,12 @@ async def _group_summary_one(
 
     async with sem:
         try:
-            result: GroupSummaryResponse = await chain.ainvoke({
+            result: GroupSummaryResponse = await _ainvoke_with_retry(chain, {
                 "articles_count": len(group_articles),
                 "articles_json": json.dumps(
                     group_articles, ensure_ascii=False,
                 ),
-            })
+            }, label="GroupSummary")
             return {
                 "article_ids": group.id,
                 "confidence": group.confidence,
@@ -586,6 +618,30 @@ async def run_pipeline(articles: list[dict]) -> dict:
 
 
 # ============================================================
+# Save to Database
+# ============================================================
+
+def _save_to_db(result: dict):
+    """Save pipeline groups to ExternalTrends table."""
+    groups = result.get("groups", [])
+    if not groups:
+        logger.info("[DB] No groups to save")
+        return
+
+    flask_app = create_app()
+    with flask_app.app_context():
+        for group in groups:
+            trend = ExternalTrends(
+                hashtag=" ".join(group["hashtags"]),
+                summary=group["summary"],
+                mention_count=len(group["article_ids"]),
+            )
+            db.session.add(trend)
+        db.session.commit()
+        logger.info("[DB] Saved %d trends to ExternalTrends", len(groups))
+
+
+# ============================================================
 # Compatibility wrapper for main.py
 # ============================================================
 
@@ -606,7 +662,7 @@ async def run(input_file: str) -> dict | None:
 
     result = await run_pipeline(all_news)
 
-    # Save output
+    # Save output to JSON file
     date_str = all_news[0]["date"].split(" ")[0].replace("/", "-")
     output_file = f"/app/data/pipeline_{date_str}.json"
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -614,6 +670,10 @@ async def run(input_file: str) -> dict | None:
         json.dump(result, f, ensure_ascii=False, indent=2)
 
     logger.info("Saved pipeline results to %s", output_file)
+
+    # Save to database
+    _save_to_db(result)
+
     return result
 
 
