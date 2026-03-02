@@ -4,7 +4,7 @@ from app.models import (
     Ingredient, PlatformToken, ContentImage, WeatherForecast, HolidayCalendar
 )
 from app.image_services import call_nano_banana_logic
-from app.AI_services import generate_drink_post
+from app.AI_services import generate_drink_post, run_generation_pipeline
 from datetime import datetime, timezone, timedelta, date
 from app.publish_workflow import run_workflow, auto_post_to_ig
 import os
@@ -17,6 +17,12 @@ import base64
 import threading
 
 SECRET_KEY = os.getenv("MY_APP_SECRET_KEY", "your_fallback_key")
+
+# 全域 task store（in-memory，足夠此規模使用）
+generation_tasks = {}
+
+# Task 清理閾值（秒）
+TASK_EXPIRY_SECONDS = 300  # 5 分鐘
 
 def register_routes(app):
     from app import minio_client, BUCKET_NAME
@@ -251,23 +257,50 @@ def register_routes(app):
             return jsonify({"status": "error", "message": f"找不到飲品: {selected_drink}"}), 404
 
         product_info = f"產品：{product.name}，類別：{product.category}，價格：{product.price}元"
-        try:
-            ai_result_dict = generate_drink_post(
-                product_info=product_info,
-                news_context=news_context,
-                promotion_info=promotion_info,
-                mood_tone=mood_tone,
-                weather_info=weather_info,
-                holiday_info=holiday_info
-            )
-            return jsonify({
-                "status": "success",
-                "generated_content": ai_result_dict,
-                "platform": "all",
-                "message": "文案生成成功，請注意：此文案尚未儲存，關閉頁面後將消失。"
-            })
-        except Exception as e:
-            return jsonify({"status": "error", "message": f"AI 生成失敗: {str(e)}"}), 500
+
+        # 建立非同步 task
+        task_id = str(uuid.uuid4())
+        generation_tasks[task_id] = {
+            "stage": "pending",
+            "progress": 0,
+            "message": "排隊中...",
+            "result": None,
+            "created_at": datetime.now(timezone.utc),
+        }
+
+        app_instance = current_app._get_current_object()
+        thread = threading.Thread(
+            target=run_generation_pipeline,
+            args=(app_instance, task_id, generation_tasks, product_info,
+                  news_context, promotion_info, mood_tone, weather_info, holiday_info),
+        )
+        thread.start()
+
+        return jsonify({"status": "success", "task_id": task_id})
+
+    @app.route('/api/generate_post/status/<task_id>', methods=['GET'])
+    def get_generation_status(task_id):
+        # 清理過期的 tasks
+        now = datetime.now(timezone.utc)
+        expired_ids = [
+            tid for tid, t in generation_tasks.items()
+            if t.get("stage") in ("done", "error")
+            and (now - t.get("created_at", now)).total_seconds() > TASK_EXPIRY_SECONDS
+        ]
+        for tid in expired_ids:
+            generation_tasks.pop(tid, None)
+
+        task = generation_tasks.get(task_id)
+        if not task:
+            return jsonify({"status": "error", "message": "Task not found"}), 404
+
+        return jsonify({
+            "status": "success",
+            "stage": task["stage"],
+            "progress": task["progress"],
+            "message": task["message"],
+            "result": task["result"],
+        })
 
     # ==========================================
     # Upload API

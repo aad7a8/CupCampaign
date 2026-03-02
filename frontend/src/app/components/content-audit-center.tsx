@@ -13,7 +13,7 @@ import { SocialPreviewTabs } from './content-audit/social-preview-tabs';
 import { TEMPLATES } from './content-audit/template-picker';
 import { cn } from '@/app/components/ui/utils';
 import { BobaProgress } from '@/app/components/ui/BobaProgress';
-import { useBobaFakeProgress } from '@/app/hooks/useBobaFakeProgress';
+import { useGenerationPolling } from '@/app/hooks/useGenerationPolling';
 import { TeaFlowProgressBar } from '@/app/components/ui/TeaFlowProgressBar';
 import { useTeaFlowFakeProgress } from '@/app/hooks/useTeaFlowFakeProgress';
 import { Instagram, Facebook, Link2 } from 'lucide-react';
@@ -57,7 +57,15 @@ export function ContentAuditCenter() {
   const [editingCopyId, setEditingCopyId] = useState<string | null>(null);
   const [editTextValue, setEditTextValue] = useState<string>('');
 
-  const { progress, status, start, finish, reset } = useBobaFakeProgress({ expectedMs: 60000 });
+  const {
+    progress: bobaProgress,
+    status: bobaStatus,
+    stageText: bobaStageText,
+    result: generationResult,
+    error: generationError,
+    startGeneration,
+    reset: generationReset,
+  } = useGenerationPolling();
   const [showBobaProgress, setShowBobaProgress] = useState(false);
   const [selectedStyleName, setSelectedStyleName] = useState<string>('');
   const [publishPlatform, setPublishPlatform] = useState<'ig' | 'fb' | 'sync'>('fb');
@@ -114,7 +122,7 @@ export function ContentAuditCenter() {
     setIsEditDialogOpen(false);
     setEditingCopyId(null);
     setEditTextValue('');
-    reset();
+    generationReset();
     setShowBobaProgress(false);
     teaFlowReset();
     setShowTeaFlowProgress(false);
@@ -143,29 +151,43 @@ export function ContentAuditCenter() {
     resetState();
   };
 
-  const generateCopies = async (productName: string, templateId: string): Promise<CopyStyle[]> => {
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    return [
-      {
-        id: 'survival',
-        name: '社畜生存',
-        icon: '🔋', 
-        content: `🧨 過年比上班還累？這杯是你的避難所！\n面對親戚連環拷問「年終、結婚、買房」，根本是比上班更累的無薪情緒加班。加上低溫來襲，你需要的不是溝通，而是${productName} 🍓！\n把濃郁烤糖奶蓋當耳塞，用酸甜草莓紅堵住靈魂拷問。每一口醇厚奶香，都在撫平被問到千瘡百孔的心。撐住啊各位！喝完這杯，我們才有力氣微笑點頭說「阿姨您說得對」。\n#老賴茶棧 #烤糖奶蓋草莓紅 #過年生存指南`
-      },
-      {
-        id: 'meme',
-        name: '時事迷因',
-        icon: '😂',
-        content: `💸 刮刮樂又做公益？沒關係，我們還有草莓自由！\n財富自由的列車今年又沒停在你這站嗎？既然沒辦法一夜暴富，就在初二這天，用一杯 ${productName} 實現「草莓自由」！🍓\n現烤焦糖脆片像極了被現實擊碎的發財夢，但搭上綿密奶蓋與招牌草莓紅，一口喝下直接原地復活！投資刮刮樂有賺有賠，投資這杯絕對穩賺不賠。快 @ 那個刮到懷疑人生的苦主，請他喝一杯壓壓驚！\n#老賴茶棧 #烤糖奶蓋草莓紅 #財富自由`
-      },
-      {
-        id: 'ritual',
-        name: '質感儀式',
-        icon: '✨', 
-        content: `🍓 喧囂退去，留一份冬日的溫柔給自己。\n在拜年與喧鬧的縫隙裡，外頭仍吹著初春冷風，你需要為自己按下的暫停鍵。${productName}，不只是手搖，更是專屬的感官儀式。\n指尖傳來杯身的溫熱，鼻息間是炙烤後的迷人糖香；綿密奶蓋如冬雪覆蓋在草莓紅茶上，酸甜與濃郁交織出美好時光的切片。這個初二午後，給自己留一首歌的時間，享受這份季節限定的小確幸。\n#老賴茶棧 #烤糖奶蓋草莓紅 #儀式感`
+  // 當 generationResult 變化時，解析為 CopyStyle[] 並填入 copyCandidates
+  useEffect(() => {
+    if (generationResult && bobaStatus === 'done') {
+      const copies: CopyStyle[] = [];
+      if (generationResult.facebook) {
+        copies.push({
+          id: 'facebook',
+          name: 'Facebook 文案',
+          icon: '📘',
+          content: generationResult.facebook,
+        });
       }
-    ];
-  };
+      if (generationResult.instagram) {
+        copies.push({
+          id: 'instagram',
+          name: 'Instagram 文案',
+          icon: '📸',
+          content: generationResult.instagram,
+        });
+      }
+      if (copies.length > 0) {
+        setCopyCandidates(copies);
+        setStage('copy_ready');
+      }
+      setShowBobaProgress(false);
+    }
+  }, [generationResult, bobaStatus]);
+
+  // 當 generationError 變化時，顯示錯誤
+  useEffect(() => {
+    if (generationError) {
+      setErrorMessage(generationError);
+      setStage('waiting_input');
+      setShowBobaProgress(false);
+      setTimeout(() => setErrorMessage(null), 5000);
+    }
+  }, [generationError]);
 
   const handleGenerateCopiesClick = async () => {
     if (!uploadedImage) {
@@ -184,24 +206,8 @@ export function ContentAuditCenter() {
     setSelectedCopyId(null);
     setErrorMessage(null);
     setShowBobaProgress(true);
-    start();
 
-    setTimeout(() => {
-      finish();
-      setTimeout(() => {
-        setShowBobaProgress(false);
-        generateCopies(selectedProduct, template)
-          .then((copies) => {
-            setCopyCandidates(copies);
-            setStage('copy_ready');
-          })
-          .catch(() => {
-            setErrorMessage('文案生成失敗，請重試');
-            setStage('waiting_input');
-            setTimeout(() => setErrorMessage(null), 3000);
-          });
-      }, 1000);
-    }, 6000);
+    startGeneration({ drink_name: selectedProduct });
   };
 
   const handleGenerateImage = async (copyId?: string) => {
@@ -435,7 +441,7 @@ export function ContentAuditCenter() {
                 </Button>
                 {showBobaProgress && (
                   <div className="mt-3">
-                    <BobaProgress progress={progress} status={status} showCounter={true} size="md" />
+                    <BobaProgress progress={bobaProgress} status={bobaStatus} stageText={bobaStageText} showCounter={true} size="md" />
                   </div>
                 )}
               </div>

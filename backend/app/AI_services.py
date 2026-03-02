@@ -1,11 +1,67 @@
 import os
 import re
+import time
 from google import genai
 from dotenv import load_dotenv
 
 
 load_dotenv()
 
+
+# 階段定義 & 進度對應
+STAGES = {
+    "collecting":       {"progress": 10,  "message": "蒐集素材中..."},
+    "reporting":        {"progress": 30,  "message": "分析報告中..."},
+    "generating_copy":  {"progress": 50,  "message": "生成文案中..."},
+    "reviewing":        {"progress": 75,  "message": "品質檢查中..."},
+    "retrying":         {"progress": 50,  "message": "重新生成文案... (第{n}次)"},
+    "done":             {"progress": 100, "message": "完成！"},
+    "error":            {"progress": 0,   "message": "生成失敗"},
+}
+
+
+def run_generation_pipeline(app, task_id, tasks_store, product_info, news_context,
+                            promotion_info, mood_tone, weather_info, holiday_info):
+    """非同步 pipeline：蒐集素材→分析報告→生成文案→品質檢查→完成"""
+    with app.app_context():
+        def update_stage(stage, extra_msg=""):
+            info = STAGES[stage].copy()
+            if extra_msg:
+                info["message"] = extra_msg
+            tasks_store[task_id].update({"stage": stage, **info})
+
+        try:
+            update_stage("collecting")
+            # 蒐集素材（目前直接用傳入的參數）
+            time.sleep(0.5)
+
+            update_stage("reporting")
+            # 分析報告
+            time.sleep(0.5)
+
+            update_stage("generating_copy")
+            # 生成文案
+            ai_result = generate_drink_post(
+                product_info=product_info,
+                news_context=news_context,
+                promotion_info=promotion_info,
+                mood_tone=mood_tone,
+                weather_info=weather_info,
+                holiday_info=holiday_info,
+            )
+
+            if ai_result is None:
+                raise Exception("AI 模型回傳空結果")
+
+            update_stage("reviewing")
+            # 品質檢查（目前直接通過）
+            time.sleep(0.5)
+
+            update_stage("done")
+            tasks_store[task_id]["result"] = ai_result
+
+        except Exception as e:
+            update_stage("error", str(e))
 
 
 def get_gemini_client():
