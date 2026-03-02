@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Cloud, DollarSign, Calendar, AlertTriangle, BarChart3 } from 'lucide-react';
+import { TrendingUp, Cloud, DollarSign, Calendar, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Progress } from '@/app/components/ui/progress';
 import { Button } from '@/app/components/ui/button';
-import { ProcurementMatrixModal } from '@/app/components/procurement-matrix-modal';
+import { ProcurementMatrixModal, PROCUREMENT_MATRIX } from '@/app/components/procurement-matrix-modal';
+import { ProcurementMonthSummary } from '@/app/components/dashboard/ProcurementMonthSummary';
 
 // --- 節慶檔期資料 ---
 const FULL_CALENDAR_2026 = [
@@ -27,6 +28,12 @@ const MOCK_WEEKLY_WEATHER = [
   { day: '週日', temp: 11, condition: '降雨', icon: '🌧️', rainProb: 85 },
 ];
 
+// Top 3 趨勢資料（用於 podium）
+const TOP_TRENDS = [
+  { rank: 1, tag: '#草莓季' },
+  { rank: 2, tag: '#烤糖奶蓋' },
+  { rank: 3, tag: '#減糖健康' },
+];
 
 type EventWithDaysLeft = {
   name: string;
@@ -118,27 +125,93 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-1 auto-rows-fr">
 
         {/* Card 1: 趨勢 */}
-        <Card className="border-l-4 flex flex-col shadow-sm" style={{ borderLeftColor: 'var(--df-accent)' }}>
+        <Card className="border-l-4 flex flex-col shadow-sm" style={{ borderLeftColor: 'var(--df-accent)' }} aria-label="Trending Leaderboard">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
+            <CardTitle className="text-lg flex items-center gap-2" title="Trending Leaderboard">
               <TrendingUp className="w-5 h-5" style={{ color: 'var(--df-accent)' }} />
-              Hot Now 趨勢
+              Trending Leaderboard
             </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">熱門排行榜</p>
           </CardHeader>
-          <CardContent className="flex-1 flex flex-col justify-center pb-6">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <span className="text-base font-medium text-gray-700">#草莓季</span>
-                <Badge variant="secondary" className="bg-red-100 text-red-600 px-3 py-1 text-sm">🔥 爆發中</Badge>
-              </div>
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <span className="text-base font-medium text-gray-700">#烤糖奶蓋</span>
-                <Badge variant="secondary" className="bg-orange-100 text-orange-600 px-3 py-1 text-sm">📈 穩定成長</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-base font-medium text-gray-700">#減糖健康</span>
-                <Badge variant="secondary" className="bg-green-100 text-green-600 px-3 py-1 text-sm">⭐ 潛力新星</Badge>
-              </div>
+          <CardContent className="flex-1 flex flex-col justify-center pb-6 min-h-[280px]">
+            {/* Podium 布局：2（左）/ 1（中最高）/ 3（右） */}
+            <div className="flex items-end justify-center gap-5 h-full min-h-[240px] py-6">
+              {/* 第2名（左） */}
+              {(() => {
+                const item = TOP_TRENDS.find(t => t.rank === 2);
+                if (!item) return null;
+                return (
+                  <div className="group w-[32%] max-w-[200px] relative" title={`${item.rank}｜${item.tag}`}>
+                    <div className="relative bg-white border border-slate-200 rounded-2xl p-5 h-[72%] min-h-[160px] flex flex-col items-center justify-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+                      {/* 排名徽章 */}
+                      <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-300 flex items-center justify-center text-base font-semibold text-slate-600 z-10">
+                        2
+                      </div>
+                      {/* 內容 */}
+                      <div className="flex-1 flex flex-col items-center justify-center pt-6">
+                        <span className="text-base font-semibold text-gray-700 text-center leading-tight">{item.tag}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 第1名（中，最高） */}
+              {(() => {
+                const item = TOP_TRENDS.find(t => t.rank === 1);
+                if (!item) return null;
+                return (
+                  <div className="group w-[32%] max-w-[220px] relative" title={`${item.rank}｜${item.tag}`}>
+                    {/* Glow Layer - 平時低強度，hover 時增強 */}
+                    <div 
+                      className="absolute inset-0 rounded-2xl pointer-events-none transition-opacity duration-300 group-hover:opacity-[0.5]"
+                      style={{
+                        opacity: 0.35,
+                        boxShadow: '0 0 0 1px rgba(245,158,11,0.25), 0 0 22px rgba(245,158,11,0.35)',
+                        animation: 'glowPulse 2.6s ease-in-out infinite',
+                      }}
+                    />
+                    <div 
+                      className="absolute inset-0 rounded-2xl pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                      style={{
+                        boxShadow: '0 0 0 1px rgba(245,158,11,0.35), 0 0 32px rgba(245,158,11,0.5)',
+                      }}
+                    />
+                    {/* 柱子 */}
+                    <div className="relative bg-white border border-amber-200 rounded-2xl p-5 h-full min-h-[220px] flex flex-col items-center justify-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
+                      {/* 排名徽章 + 獎盃 */}
+                      <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-gradient-to-br from-amber-100 to-amber-50 border-2 border-amber-300 flex items-center justify-center text-lg font-semibold text-amber-700 z-10 relative">
+                        1
+                        <span className="absolute -top-2 -right-2 text-[16px] drop-shadow-sm">🏆</span>
+                      </div>
+                      {/* 內容 */}
+                      <div className="flex-1 flex flex-col items-center justify-center pt-8">
+                        <span className="text-lg font-semibold text-gray-800 text-center leading-tight">{item.tag}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 第3名（右） */}
+              {(() => {
+                const item = TOP_TRENDS.find(t => t.rank === 3);
+                if (!item) return null;
+                return (
+                  <div className="group w-[32%] max-w-[200px] relative" title={`${item.rank}｜${item.tag}`}>
+                    <div className="relative bg-white border border-slate-200 rounded-2xl p-5 h-[64%] min-h-[140px] flex flex-col items-center justify-center transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
+                      {/* 排名徽章 */}
+                      <div className="absolute -top-5 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-300 flex items-center justify-center text-base font-semibold text-slate-600 z-10">
+                        3
+                      </div>
+                      {/* 內容 */}
+                      <div className="flex-1 flex flex-col items-center justify-center pt-6">
+                        <span className="text-base font-semibold text-gray-700 text-center leading-tight">{item.tag}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </CardContent>
         </Card>
@@ -234,10 +307,10 @@ export function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-center pb-6">
-            <div className="flex flex-col items-center justify-center gap-2">
-              <BarChart3 className="w-8 h-8 text-orange-400 opacity-50" />
-              <p className="text-sm text-muted-foreground text-center">點擊「全年採購矩陣」查看詳細資訊</p>
-            </div>
+            <ProcurementMonthSummary
+              month={new Date().getMonth() + 1}
+              matrix={PROCUREMENT_MATRIX}
+            />
           </CardContent>
         </Card>
 

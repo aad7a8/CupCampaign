@@ -1,5 +1,4 @@
-import { Bell, User, Settings, LogOut, ChevronDown } from 'lucide-react';
-import { Badge } from '@/app/components/ui/badge';
+import { User, Settings, LogOut, ChevronDown } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/app/components/ui/avatar';
 import {
   DropdownMenu,
@@ -62,16 +61,6 @@ export function Header({ onNavigate, onLogout }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-4 ml-auto">
-        <div className="relative">
-          <Bell className="w-5 h-5 text-white cursor-pointer" />
-          <Badge
-            className="absolute -top-1 -right-1 w-4 h-4 p-0 flex items-center justify-center text-[10px]"
-            style={{ backgroundColor: '#ef4444' }}
-          >
-            3
-          </Badge>
-        </div>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button 

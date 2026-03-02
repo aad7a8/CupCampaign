@@ -310,7 +310,6 @@ export function ContentAuditCenter() {
           <Card className="shadow-sm">
             <CardContent className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium">產品照片上傳</Label>
                 <div className="flex justify-center w-full">
                   <div className="w-full max-w-[300px]">
                     <ImageUploader

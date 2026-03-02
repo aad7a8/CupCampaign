@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Plus, Upload, Package, Loader2 } from 'lucide-react';
+import { Plus, Upload, Package, Loader2, AlertTriangle, FileSpreadsheet, X } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
 import { toast } from 'sonner';
@@ -8,6 +8,9 @@ import { MenuToolbar } from './menu-management/MenuToolbar';
 import { MenuTable } from './menu-management/MenuTable';
 import { MenuDrawerForm } from './menu-management/MenuDrawerForm';
 import { MenuItem } from './menu-management/types';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/app/components/ui/dialog';
+import { Alert, AlertTitle, AlertDescription } from '@/app/components/ui/alert';
+import { Label } from '@/app/components/ui/label';
 
 // 重新導出類型以供其他模組使用
 export type { MenuItem };
@@ -37,6 +40,13 @@ export function MenuManagementPage() {
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // 匯入 Dialog state
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importedRows, setImportedRows] = useState<ImportItem[]>([]);
+  const [importSuccessMessage, setImportSuccessMessage] = useState<string | null>(null);
 
   // Filter & Sort 狀態
   const [searchQuery, setSearchQuery] = useState('');
@@ -231,7 +241,11 @@ export function MenuManagementPage() {
 
   // 處理匯入按鈕點擊
   const handleImportClick = () => {
-    fileInputRef.current?.click();
+    setIsImportDialogOpen(true);
+    setSelectedFile(null);
+    setImportError(null);
+    setImportedRows([]);
+    setImportSuccessMessage(null);
   };
 
   // 批次匯入 API（模擬後端 API）
@@ -492,7 +506,39 @@ export function MenuManagementPage() {
     }
   };
 
-  // 處理檔案選擇
+  // 處理 Dialog 中的檔案選擇
+  const handleDialogFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    // 驗證副檔名
+    const fileName = file.name.toLowerCase();
+    const validExtensions = ['.xlsx', '.xls'];
+    const fileExtension = fileName.substring(fileName.lastIndexOf('.'));
+
+    if (!validExtensions.includes(fileExtension)) {
+      toast.error('只支援 Excel（.xlsx/.xls）');
+      setImportError('只支援 Excel 檔（.xlsx / .xls）');
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      return;
+    }
+
+    setSelectedFile(file);
+    setImportError(null);
+    setImportedRows([]);
+    setImportSuccessMessage(null);
+
+    // 自動解析檔案
+    await parseExcelInDialog(file);
+  };
+
+  // 處理 Dialog 中的檔案選擇（舊的保留作為備用）
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -514,6 +560,235 @@ export function MenuManagementPage() {
     await parseExcelAndImport(file);
   };
 
+  // 在 Dialog 中解析 Excel（不直接匯入，只驗證和顯示結果）
+  const parseExcelInDialog = async (file: File) => {
+    try {
+      setIsImporting(true);
+      setImportError(null);
+      setImportedRows([]);
+      setImportSuccessMessage(null);
+
+      // 讀取檔案為 ArrayBuffer
+      const buffer = await file.arrayBuffer();
+
+      // 解析 Excel
+      const wb = XLSX.read(buffer, { type: 'array' });
+
+      // 讀取第一個工作表
+      const firstSheetName = wb.SheetNames[0];
+      const ws = wb.Sheets[firstSheetName];
+
+      // 轉換為 JSON
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as any[];
+
+      if (rows.length === 0) {
+        setImportError('Excel 檔案為空');
+        return;
+      }
+
+      // 欄位 mapping（支援中英欄位）
+      const fieldMapping: Record<string, string> = {
+        飲品: 'name',
+        品名: 'name',
+        飲品名稱: 'name',
+        name: 'name',
+        分類: 'category',
+        類別: 'category',
+        category: 'category',
+        售價: 'price',
+        價格: 'price',
+        price: 'price',
+        狀態: 'status',
+        status: 'status',
+      };
+
+      // 取得第一列作為欄位名稱
+      const headers = Object.keys(rows[0]);
+      const headerMap: Record<string, string> = {};
+      headers.forEach((header) => {
+        const normalizedHeader = header.trim();
+        if (fieldMapping[normalizedHeader]) {
+          headerMap[fieldMapping[normalizedHeader]] = normalizedHeader;
+        }
+      });
+
+      // 驗證必填欄位是否存在
+      const requiredFields = ['name', 'category', 'price'];
+      const missingFields = requiredFields.filter(
+        (field) => !headerMap[field]
+      );
+
+      if (missingFields.length > 0) {
+        const missingFieldNames = missingFields
+          .map((f) => {
+            if (f === 'name') return '飲品/name';
+            if (f === 'category') return '分類/category';
+            if (f === 'price') return '售價/price';
+            return f;
+          })
+          .join('、');
+        setImportError(`缺少必填欄位：${missingFieldNames}`);
+        return;
+      }
+
+      // 驗證和轉換資料
+      const validationErrors: ValidationError[] = [];
+      const validItems: ImportItem[] = [];
+
+      rows.forEach((row, index) => {
+        const rowNumber = index + 2; // Excel 行號（第一列是標題）
+        const errors: string[] = [];
+
+        // 取得欄位值
+        const nameValue = row[headerMap.name]?.toString().trim() || '';
+        const categoryValue = row[headerMap.category]?.toString().trim() || '';
+        const priceValue = row[headerMap.price]?.toString().trim() || '';
+        const statusValue = row[headerMap.status]?.toString().trim() || '';
+
+        // 驗證必填欄位
+        if (!nameValue) {
+          errors.push('飲品名稱');
+        }
+        if (!categoryValue) {
+          errors.push('分類');
+        }
+        if (!priceValue) {
+          errors.push('售價');
+        }
+
+        // 驗證價格
+        let price = 0;
+        if (priceValue) {
+          const parsedPrice = parseFloat(priceValue);
+          if (isNaN(parsedPrice) || parsedPrice <= 0) {
+            errors.push('售價必須為大於 0 的數字');
+          } else {
+            price = parsedPrice;
+          }
+        }
+
+        // 如果有錯誤，記錄
+        if (errors.length > 0) {
+          validationErrors.push({
+            row: rowNumber,
+            field: errors.join('、'),
+            message: `第 ${rowNumber} 行：缺少或無效的欄位（${errors.join('、')}）`,
+          });
+          return;
+        }
+
+        // 處理狀態欄位
+        let status: 'active' | 'inactive' = 'active';
+        if (statusValue) {
+          const normalizedStatus = statusValue.toLowerCase().trim();
+          if (
+            normalizedStatus === 'active' ||
+            normalizedStatus === '上架中' ||
+            normalizedStatus === '上架'
+          ) {
+            status = 'active';
+          } else if (
+            normalizedStatus === 'inactive' ||
+            normalizedStatus === '下架' ||
+            normalizedStatus === '已下架'
+          ) {
+            status = 'inactive';
+          }
+        }
+
+        // 加入有效項目
+        validItems.push({
+          name: nameValue,
+          category: categoryValue,
+          price,
+          status,
+        });
+      });
+
+      // 如果有驗證錯誤，顯示錯誤
+      if (validationErrors.length > 0) {
+        const errorCount = validationErrors.length;
+        const displayErrors = validationErrors.slice(0, 5);
+        const remainingCount = errorCount - 5;
+
+        let errorMessage = `Excel 檔案驗證失敗，共 ${errorCount} 筆錯誤：\n\n`;
+        errorMessage += displayErrors.map((e) => e.message).join('\n');
+        if (remainingCount > 0) {
+          errorMessage += `\n\n...還有 ${remainingCount} 筆錯誤`;
+        }
+        errorMessage += '\n\n請修正 Excel 檔案後再重新匯入。';
+        setImportError(errorMessage);
+        return;
+      }
+
+      if (validItems.length === 0) {
+        setImportError('沒有有效的資料可匯入');
+        return;
+      }
+
+      // 顯示成功讀取
+      setImportedRows(validItems);
+      setImportSuccessMessage(`成功讀取 ${validItems.length} 筆資料`);
+    } catch (error) {
+      console.error('解析錯誤:', error);
+      setImportError(
+        error instanceof Error
+          ? `解析失敗：${error.message}`
+          : '解析失敗，請檢查檔案格式'
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  // 執行匯入（從 Dialog 中）
+  const handleImportFromDialog = async () => {
+    if (!selectedFile || importedRows.length === 0) {
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      setImportError(null);
+
+      // 呼叫批次匯入 API
+      const result = await bulkImportMenuItems(importedRows);
+
+      // 顯示結果
+      if (result.failed === 0) {
+        toast.success(`匯入完成：成功 ${result.success} 筆`);
+        setIsImportDialogOpen(false);
+        setSelectedFile(null);
+        setImportedRows([]);
+        setImportSuccessMessage(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      } else {
+        const errorDetails =
+          result.errors.length > 0
+            ? `\n\n錯誤詳情：\n${result.errors.slice(0, 5).join('\n')}${
+                result.errors.length > 5
+                  ? `\n...還有 ${result.errors.length - 5} 筆錯誤`
+                  : ''
+              }`
+            : '';
+        setImportError(
+          `匯入完成：成功 ${result.success} 筆、失敗 ${result.failed} 筆${errorDetails}`
+        );
+      }
+    } catch (error) {
+      console.error('匯入錯誤:', error);
+      setImportError(
+        error instanceof Error
+          ? `匯入失敗：${error.message}`
+          : '匯入失敗，請檢查檔案格式'
+      );
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
       {/* Page Header */}
@@ -526,8 +801,8 @@ export function MenuManagementPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileChange}
+            accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,.xlsx,.xls"
+            onChange={handleDialogFileChange}
             className="hidden"
           />
           <Button
@@ -636,6 +911,171 @@ export function MenuManagementPage() {
         item={editingItem}
         onSave={handleSave}
       />
+
+      {/* 匯入 Dialog */}
+      <Dialog 
+        open={isImportDialogOpen} 
+        onOpenChange={(open) => {
+          setIsImportDialogOpen(open);
+          if (!open) {
+            // 關閉時清理狀態
+            setSelectedFile(null);
+            setImportError(null);
+            setImportedRows([]);
+            setImportSuccessMessage(null);
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>匯入 Excel</DialogTitle>
+            <DialogDescription>
+              上傳 Excel 檔案以批次匯入飲品資料
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* A) 提示區塊 */}
+            <Alert variant="default" className="bg-amber-50 border-amber-200">
+              <AlertTriangle className="text-amber-600" />
+              <AlertTitle className="text-amber-900 font-semibold">
+                請確認 Excel 包含以下欄位（欄位名稱可用中文或英文其一）：
+              </AlertTitle>
+              <AlertDescription className="text-amber-800 mt-2">
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>飲品 / name（或：品名、飲品名稱）</li>
+                  <li>分類 / category（或：類別）</li>
+                  <li>售價 / price（或：價格）</li>
+                </ol>
+                <p className="mt-2 text-xs">缺少欄位將無法匯入</p>
+              </AlertDescription>
+            </Alert>
+
+            {/* B) 檔案上傳區 */}
+            <div className="space-y-3">
+              <Label>選擇 Excel 檔案</Label>
+              
+              {/* 隱藏的原生 input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                onChange={handleDialogFileChange}
+                className="hidden"
+              />
+
+              {/* 自訂上傳按鈕 */}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                選擇 Excel 檔案
+              </Button>
+
+              {/* 檔案狀態顯示 */}
+              <div className="rounded-md bg-slate-50 border border-slate-200 px-3 py-2">
+                {selectedFile ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm">
+                      <FileSpreadsheet className="w-4 h-4 text-slate-600" />
+                      <span className="text-slate-700">
+                        已選擇：{selectedFile.name}（{(selectedFile.size / 1024).toFixed(2)} KB）
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setImportError(null);
+                        setImportedRows([]);
+                        setImportSuccessMessage(null);
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                        }
+                      }}
+                      className="h-7 px-2 text-xs"
+                    >
+                      更換
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    尚未選擇檔案
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* C) 錯誤訊息區 */}
+            {importError && (
+              <Alert variant="destructive">
+                <AlertTriangle />
+                <AlertTitle>匯入錯誤</AlertTitle>
+                <AlertDescription className="whitespace-pre-line">
+                  {importError}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* D) 成功訊息區 */}
+            {importSuccessMessage && (
+              <Alert variant="default" className="bg-green-50 border-green-200">
+                <Package className="text-green-600" />
+                <AlertTitle className="text-green-900 font-semibold">
+                  {importSuccessMessage}
+                </AlertTitle>
+                <AlertDescription className="text-green-800">
+                  點擊「開始匯入」按鈕將資料匯入系統
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsImportDialogOpen(false);
+                setSelectedFile(null);
+                setImportError(null);
+                setImportedRows([]);
+                setImportSuccessMessage(null);
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = '';
+                }
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={handleImportFromDialog}
+              disabled={
+                !selectedFile ||
+                importedRows.length === 0 ||
+                isImporting ||
+                importError !== null
+              }
+            >
+              {isImporting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  匯入中…
+                </>
+              ) : (
+                '開始匯入'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
