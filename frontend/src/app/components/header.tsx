@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from '@/app/components/ui/dropdown-menu';
 import { useLanguage } from '@/app/contexts/LanguageContext';
+import { useUser } from '@/app/contexts/UserContext';
 import { useEffect } from 'react';
 
 interface HeaderProps {
@@ -18,6 +19,14 @@ interface HeaderProps {
 
 export function Header({ onNavigate, onLogout }: HeaderProps) {
   const { t } = useLanguage();
+  const { user } = useUser();
+
+  // 計算顯示名稱
+  const brandName = user?.brandName ?? user?.shopName ?? user?.merchantName ?? '';
+  const branchName = user?.branchName ?? user?.storeName ?? user?.branch ?? '';
+  const displayName = brandName && branchName 
+    ? `${brandName}｜${branchName}` 
+    : (brandName || t('header.profile'));
 
   // #region agent log
   useEffect(() => {
@@ -79,7 +88,9 @@ export function Header({ onNavigate, onLogout }: HeaderProps) {
                   <User className="w-4 h-4" />
                 </AvatarFallback>
               </Avatar>
-              <span className="text-white text-sm">{t('header.profile')}</span>
+              <span className="text-white text-sm font-medium max-w-[220px] md:max-w-[320px] truncate">
+                {displayName}
+              </span>
               <ChevronDown className="w-4 h-4 text-white" />
             </button>
           </DropdownMenuTrigger>

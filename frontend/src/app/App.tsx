@@ -10,6 +10,7 @@ import { GeneralSettingsPage } from '@/app/components/general-settings-page';
 import { HistoryPage } from '@/app/components/history-page';
 import { MenuManagementPage } from '@/app/components/menu-management-page';
 import { LanguageProvider } from '@/app/contexts/LanguageContext';
+import { UserProvider, useUser } from '@/app/contexts/UserContext';
 import { Toaster } from '@/app/components/ui/sonner';
 
 function AppContent() {
@@ -17,11 +18,17 @@ function AppContent() {
   const [currentBrand, setCurrentBrand] = useState('');
   const [currentPage, setCurrentPage] = useState('menuManagement');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const { setUser } = useUser();
 
   // 處理登入 (登入成功後導向菜單管理)
   const handleLogin = (username: string) => {
     // [模擬後端邏輯]
-    setCurrentBrand('珍煮丹 (範例)'); // 模擬從後端抓取到的品牌名
+    // 模擬從後端抓取到的用戶資訊
+    setUser({
+      brandName: '珍煮丹',
+      branchName: '台北信義店',
+    });
+    setCurrentBrand('珍煮丹 (範例)'); // 保留舊的 state 以兼容其他可能的使用
     setIsLoggedIn(true);
     setCurrentPage('menuManagement');
   };
@@ -35,13 +42,19 @@ function AppContent() {
   }) => {
     console.log('新用戶註冊:', payload);
 
+    // 儲存用戶資訊到 Context
+    setUser({
+      brandName: payload.brandName,
+      branchName: payload.storeName, // storeName 對應到 branchName
+    });
+
     setIsLoggedIn(true);
 
     const displayName = payload.storeName
       ? `${payload.brandName} - ${payload.storeName}`
       : payload.brandName;
 
-    // 記錄品牌名稱
+    // 記錄品牌名稱（保留舊的 state 以兼容）
     setCurrentBrand(displayName);
 
     // 註冊成功後直接導航到菜單管理頁面
@@ -51,6 +64,7 @@ function AppContent() {
   // 處理登出 (重置所有狀態並回到登錄畫面)
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setUser(null); // 清除用戶資訊
     setCurrentBrand('');
     setCurrentPage('menuManagement');
   };
@@ -128,9 +142,11 @@ function AppContent() {
 export default function App() {
   return (
     <LanguageProvider>
-      <BrowserRouter>
-        <AppContent />
-      </BrowserRouter>
+      <UserProvider>
+        <BrowserRouter>
+          <AppContent />
+        </BrowserRouter>
+      </UserProvider>
     </LanguageProvider>
   );
 }

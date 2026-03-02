@@ -1,39 +1,18 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
 
-export type Language = 'zh-TW' | 'en';
+// 固定为繁体中文
+export type Language = 'zh-TW';
 
 interface LanguageContextType {
   language: Language;
-  setLanguage: (lang: Language) => void;
   t: (key: string) => string;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
-// 从 localStorage 读取语言设置
-const getStoredLanguage = (): Language => {
-  if (typeof window === 'undefined') return 'zh-TW';
-  const stored = localStorage.getItem('locale');
-  if (stored === 'zh-TW' || stored === 'en') {
-    return stored;
-  }
-  return 'zh-TW';
-};
-
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguageState] = useState<Language>(getStoredLanguage());
-
-  // 初始化时读取并套用
-  useEffect(() => {
-    const stored = getStoredLanguage();
-    setLanguageState(stored);
-  }, []);
-
-  // 设置语言并保存到 localStorage
-  const setLanguage = (lang: Language) => {
-    setLanguageState(lang);
-    localStorage.setItem('locale', lang);
-  };
+  // 固定为 zh-TW，不再读取 localStorage
+  const language: Language = 'zh-TW';
 
   const t = (key: string): string => {
     const keys = key.split('.');
@@ -47,7 +26,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+    <LanguageContext.Provider value={{ language, t }}>
       {children}
     </LanguageContext.Provider>
   );
@@ -160,7 +139,6 @@ const translations = {
     language: {
       select: '語言',
       zhTW: '繁體中文',
-      en: 'English',
     },
     settings: {
       title: '設定',
@@ -245,192 +223,6 @@ const translations = {
         avgEngagement: '平均互動',
         top5: 'Top 5 表現',
         publishDate: '發布日',
-      },
-    },
-  },
-  'en': {
-    // Login Page
-    login: {
-      title: 'CupCampaign',
-      subtitle: 'Intelligent Beverage Marketing System - Login',
-      username: 'Username / Email',
-      password: 'Password',
-      forgotPassword: 'Forgot password?',
-      loginButton: 'Login',
-      registerButton: 'Register',
-      or: 'or',
-      backToLogin: 'Back to Login',
-    },
-    register: {
-      title: 'Create New Account',
-      subtitle: 'Register to start building your AI brand database',
-      username: 'Set Account (Email)',
-      password: 'Set Password',
-      brandName: 'Store/Brand Name',
-      storeCounty: 'Store County',
-      storeName: 'Branch Name',
-      storeLocation: 'Branch Address',
-      selectCounty: 'Please select county',
-      storePlaceholder: 'Please enter',
-      locationPlaceholder: 'ex: No.1, Sec.1, Da\'an Rd.',
-      registerButton: 'Register Now',
-    },
-    forgotPassword: {
-      title: 'Forgot Password',
-      subtitle: 'Please enter your registered email, we will send a password reset link to your inbox',
-      emailLabel: 'Enter registered Email',
-      emailPlaceholder: 'name@example.com',
-      sendButton: 'Send Reset Password Email',
-      sending: 'Sending...',
-      successMessage: 'Password reset link has been sent to your email, please check your inbox',
-      goToResetPage: 'Go to Set New Password Page',
-    },
-    resetPassword: {
-      title: 'Set New Password',
-      subtitle: 'Please enter your new password',
-      newPasswordLabel: 'New Password',
-      newPasswordPlaceholder: 'Enter new password',
-      confirmPasswordLabel: 'Confirm New Password',
-      confirmPasswordPlaceholder: 'Enter new password again',
-      submitButton: 'Confirm Reset Password',
-      submitting: 'Processing...',
-      successMessage: 'Password reset successfully! Please login with your new password.',
-      errorMessage: 'Failed to reset password, please check if the link is valid or expired',
-      invalidToken: 'Invalid reset link, please request a new one',
-      newPasswordRequired: 'Please enter new password',
-      confirmPasswordRequired: 'Please confirm new password',
-      passwordTooShort: 'Password must be at least 6 characters',
-      passwordsDoNotMatch: 'Passwords do not match',
-    },
-    header: {
-      search: 'Search...',
-      profile: 'Profile',
-      notifications: 'Notifications',
-      profileMenu: {
-        settings: 'Settings',
-        platformIntegration: 'Platform Integration Settings',
-        logout: 'Log out',
-      },
-    },
-    brandSetup: {
-      title: 'Initialize Brand Menu',
-      subtitle: 'Create product data and ingredient list',
-      section1: 'Brand Information',
-      section2: 'Product List & Ingredients',
-      brandName: 'Store/Brand Name',
-      storeCounty: 'Store County',
-      selectCounty: 'Select county (for weather analysis)',
-      addItem: 'Add Manually',
-      category: 'Category',
-      itemName: 'Item Name',
-      price: 'Price',
-      ingredients: 'Ingredient List',
-      ingredientsPlaceholder: 'e.g.: Strawberry, Cream Top, Black Tea',
-      saveButton: 'Save to Database',
-      brandNamePlaceholder: 'Please enter here',
-      categoryPlaceholder: 'Category',
-      itemPlaceholder: 'Item name',
-      pricePlaceholder: '0',
-    },
-    dashboard: {
-      title: 'Dashboard',
-      overview: 'Overview',
-    },
-    navigation: {
-      mainFeatures: 'Main Features',
-      dashboard: 'Smart Dashboard',
-      audit: 'Content Review Center',
-      settings: 'History',
-      menuManagement: 'Menu Management',
-    },
-    language: {
-      select: 'Language',
-      zhTW: '繁體中文',
-      en: 'English',
-    },
-    settings: {
-      title: 'Settings',
-      subtitle: 'Manage your account and system preferences',
-      language: {
-        title: 'Language Settings',
-        description: 'Choose your preferred interface language',
-        selectLabel: 'Language',
-        hint: 'Changes will be applied immediately across the system',
-      },
-    },
-    alerts: {
-      emailRequired: 'Please enter your email',
-      invalidEmail: 'Please enter a valid email format',
-      resetEmailSent: 'Password reset link has been sent to your email, please check your inbox',
-      resetEmailFailed: 'Failed to send, please try again later',
-      passwordResetSuccess: 'Password reset successfully! Please login with your new password.',
-      itemNameRequired: 'Some product names are not filled in',
-    },
-    history: {
-      title: 'History Query',
-      lastSync: 'Last Sync Time',
-      neverSynced: 'Never Synced',
-      refresh: 'Refresh',
-      tabs: {
-        published: 'Published List',
-        performance: 'Performance',
-      },
-      filters: {
-        dateRange: 'Date Range',
-        today: 'Today',
-        last7Days: '7 Days',
-        last30Days: '30 Days',
-        custom: 'Custom',
-        platform: 'Platform',
-        allPlatforms: 'All',
-        status: 'Status',
-        allStatuses: 'All',
-        keyword: 'Keyword Search',
-        keywordPlaceholder: 'Search content, campaign, product...',
-      },
-      table: {
-        publishTime: 'Publish Time',
-        platform: 'Platform',
-        campaign: 'Campaign/Theme',
-        product: 'Product',
-        copySummary: 'Copy Summary',
-        status: 'Status',
-        engagement: 'Engagement',
-        actions: 'Actions',
-        view: 'View',
-        copy: 'Copy & Reuse',
-        copySuccess: 'Copy has been copied to clipboard',
-      },
-      status: {
-        success: 'Success',
-        scheduled: 'Scheduled',
-        failed: 'Failed',
-        unpublished: 'Unpublished',
-      },
-      drawer: {
-        title: 'Post Details',
-        fullContent: 'Full Content',
-        copyContent: 'Copy Content',
-        platformLink: 'Platform Link',
-        metrics: 'Metrics',
-        likes: 'Likes',
-        comments: 'Comments',
-        shares: 'Shares',
-        totalEngagement: 'Total Engagement',
-        lastUpdated: 'Last Updated',
-      },
-      empty: {
-        noRecords: 'No published records yet',
-        goToGenerate: 'Go to Copy Generation',
-        noPerformance: 'No performance data',
-        noPerformanceHint: 'Please ensure platform integration is complete / or sync later',
-      },
-      performance: {
-        posts: 'Posts',
-        totalEngagement: 'Total Engagement',
-        avgEngagement: 'Avg Engagement',
-        top5: 'Top 5 Performance',
-        publishDate: 'Publish Date',
       },
     },
   },

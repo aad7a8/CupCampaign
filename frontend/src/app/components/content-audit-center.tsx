@@ -12,6 +12,9 @@ import { GeneratedGallery, generateMockImages, GenerationStatus, GeneratedImage 
 import { SocialPreviewTabs } from './content-audit/social-preview-tabs';
 import { TEMPLATES } from './content-audit/template-picker';
 import { cn } from '@/app/components/ui/utils';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/app/components/ui/tabs';
+import { ImageWithFallback } from '@/app/components/figma/ImageWithFallback';
+import { ToggleGroup, ToggleGroupItem } from '@/app/components/ui/toggle-group';
 import { BobaProgress } from '@/app/components/ui/BobaProgress';
 import { useBobaFakeProgress } from '@/app/hooks/useBobaFakeProgress';
 import { TeaFlowProgressBar } from '@/app/components/ui/TeaFlowProgressBar';
@@ -117,7 +120,7 @@ export function ContentAuditCenter() {
       {
         id: 'survival',
         name: '社畜生存',
-        icon: '🔋', 
+        icon: '🔋',
         content: `🧨 過年比上班還累？這杯是你的避難所！\n面對親戚連環拷問「年終、結婚、買房」，根本是比上班更累的無薪情緒加班。加上低溫來襲，你需要的不是溝通，而是${productName} 🍓！\n把濃郁烤糖奶蓋當耳塞，用酸甜草莓紅堵住靈魂拷問。每一口醇厚奶香，都在撫平被問到千瘡百孔的心。撐住啊各位！喝完這杯，我們才有力氣微笑點頭說「阿姨您說得對」。\n#老賴茶棧 #烤糖奶蓋草莓紅 #過年生存指南`
       },
       {
@@ -129,7 +132,7 @@ export function ContentAuditCenter() {
       {
         id: 'ritual',
         name: '質感儀式',
-        icon: '✨', 
+        icon: '✨',
         content: `🍓 喧囂退去，留一份冬日的溫柔給自己。\n在拜年與喧鬧的縫隙裡，外頭仍吹著初春冷風，你需要為自己按下的暫停鍵。${productName}，不只是手搖，更是專屬的感官儀式。\n指尖傳來杯身的溫熱，鼻息間是炙烤後的迷人糖香；綿密奶蓋如冬雪覆蓋在草莓紅茶上，酸甜與濃郁交織出美好時光的切片。這個初二午後，給自己留一首歌的時間，享受這份季節限定的小確幸。\n#老賴茶棧 #烤糖奶蓋草莓紅 #儀式感`
       }
     ];
@@ -162,6 +165,10 @@ export function ContentAuditCenter() {
           .then((copies) => {
             setCopyCandidates(copies);
             setStage('copy_ready');
+            // Auto-select first copy
+            if (copies.length > 0) {
+              setSelectedCopyId(copies[0].id);
+            }
           })
           .catch(() => {
             setErrorMessage('文案生成失敗，請重試');
@@ -181,7 +188,7 @@ export function ContentAuditCenter() {
 
     setStage('image_generating');
     setGenerationStatus('generating');
-    
+
     generateMockImages(uploadedImage)
       .then((images) => {
         setGeneratedImages(images);
@@ -236,7 +243,7 @@ export function ContentAuditCenter() {
     teaFlowStart();
     setStage('image_generating');
     setGenerationStatus('generating');
-  
+
     try {
       const responseBlob = await fetch(uploadedImage!);
       const blob = await responseBlob.blob();
@@ -283,6 +290,11 @@ export function ContentAuditCenter() {
   const selectedGeneratedImageUrl = selectedImage
     ? generatedImages.find(img => img.id === selectedImage)?.url || null
     : generatedImages.length > 0 ? generatedImages[0].url : null;
+
+  // Check step readiness
+  const hasImageAndProduct = uploadedImage && selectedProduct;
+  const hasCopies = copyCandidates.length > 0;
+  const hasGeneratedImages = generatedImages.length > 0;
 
   return (
     <div className="flex flex-col lg:flex-row w-full min-h-screen" style={{ backgroundColor: 'var(--df-bg)' }}>
@@ -483,22 +495,22 @@ export function ContentAuditCenter() {
                 >
                   <Instagram className="w-4 h-4 mr-2" /> IG
                 </Button>
-                
+
                 {/* FB 按鈕 */}
                 <Button
                   variant={publishPlatform === 'fb' ? 'default' : 'outline'}
                   size="sm"
                   className={cn(
                     "flex-1 transition-colors shadow-sm",
-                    publishPlatform === 'fb' 
-                      ? "bg-[#c5a484] hover:bg-[#b39374] text-white border-transparent" 
+                    publishPlatform === 'fb'
+                      ? "bg-[#c5a484] hover:bg-[#b39374] text-white border-transparent"
                       : "bg-white hover:bg-slate-50 text-foreground"
                   )}
                   onClick={() => setPublishPlatform('fb')}
                 >
                   <Facebook className="w-4 h-4 mr-2" /> Facebook
                 </Button>
-                
+
                 {/* 同步發佈按鈕 */}
                 <Button
                   variant={publishPlatform === 'sync' ? 'default' : 'outline'}

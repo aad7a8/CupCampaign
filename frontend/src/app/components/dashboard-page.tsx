@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { TrendingUp, Cloud, DollarSign, Calendar, AlertTriangle } from 'lucide-react';
+import { TrendingUp, Cloud, DollarSign, Calendar, AlertTriangle, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/app/components/ui/card';
 import { Badge } from '@/app/components/ui/badge';
 import { Progress } from '@/app/components/ui/progress';
+import { Button } from '@/app/components/ui/button';
+import { ProcurementMatrixModal } from '@/app/components/procurement-matrix-modal';
 
 // --- 節慶檔期資料 ---
 const FULL_CALENDAR_2026 = [
@@ -14,10 +16,31 @@ const FULL_CALENDAR_2026 = [
   { name: "五一勞動節", date: "2026-05-01T00:00:00", type: "holiday", note: "3天連假" },
 ];
 
+// 模擬一週天氣數據
+const MOCK_WEEKLY_WEATHER = [
+  { day: '週一', temp: 13, condition: '降雨中', icon: '🌧️', rainProb: 80 },
+  { day: '週二', temp: 15, condition: '多雲', icon: '☁️', rainProb: 30 },
+  { day: '週三', temp: 18, condition: '晴', icon: '☀️', rainProb: 10 },
+  { day: '週四', temp: 16, condition: '多雲', icon: '☁️', rainProb: 20 },
+  { day: '週五', temp: 14, condition: '陰', icon: '⛅', rainProb: 40 },
+  { day: '週六', temp: 12, condition: '降雨', icon: '🌧️', rainProb: 70 },
+  { day: '週日', temp: 11, condition: '降雨', icon: '🌧️', rainProb: 85 },
+];
+
+
+type EventWithDaysLeft = {
+  name: string;
+  date: string;
+  type: string;
+  note: string;
+  daysLeft: number;
+};
+
 export function DashboardPage() {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [weatherData, setWeatherData] = useState(null);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+  const [isMatrixOpen, setIsMatrixOpen] = useState(false);
 
   // --- 檔期 Effect ---
   useEffect(() => {
@@ -192,28 +215,28 @@ export function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Card 3: 成本 */}
+        {/* Card 3: 採購建議 */}
         <Card className="border-l-4 border-orange-400 flex flex-col shadow-sm">
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-orange-400" />
-              原物料成本
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-orange-400" />
+                採購建議
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsMatrixOpen(true)}
+                className="h-6 px-2 text-[10px]"
+              >
+                全年採購矩陣
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col justify-center pb-6">
-            <div className="space-y-6">
-              <div className="flex justify-between items-center text-base pb-3 border-b border-gray-100">
-                <span className="font-medium text-gray-700">草莓</span>
-                <span className="text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded">↑ 漲幅 15%</span>
-              </div>
-              <div className="flex justify-between items-center text-base pb-3 border-b border-gray-100">
-                <span className="font-medium text-gray-700">茶葉</span>
-                <span className="text-green-600 font-bold bg-green-50 px-2 py-1 rounded">↓ 跌幅 3%</span>
-              </div>
-              <div className="flex justify-between items-center text-base">
-                <span className="font-medium text-gray-700">鮮奶</span>
-                <span className="text-gray-500 font-bold bg-gray-100 px-2 py-1 rounded">→ 持平</span>
-              </div>
+            <div className="flex flex-col items-center justify-center gap-2">
+              <BarChart3 className="w-8 h-8 text-orange-400 opacity-50" />
+              <p className="text-sm text-muted-foreground text-center">點擊「全年採購矩陣」查看詳細資訊</p>
             </div>
           </CardContent>
         </Card>
@@ -258,6 +281,9 @@ export function DashboardPage() {
         </Card>
 
       </div>
+
+      {/* 全年採購矩陣視窗 */}
+      <ProcurementMatrixModal open={isMatrixOpen} onOpenChange={setIsMatrixOpen} />
     </div>
   );
 }

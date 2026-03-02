@@ -4,8 +4,7 @@ import { Button } from '@/app/components/ui/button';
 import { Input } from '@/app/components/ui/input';
 import { Label } from '@/app/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/app/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
-import { Lock, ArrowLeft, Languages } from 'lucide-react';
+import { Lock, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { resetPassword } from '@/app/services/authService';
 import { toast } from 'sonner';
@@ -14,7 +13,7 @@ export function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get('token');
-  const { t, language, setLanguage } = useLanguage();
+  const { t } = useLanguage();
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -88,22 +87,6 @@ export function ResetPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--df-bg)' }}>
       <Card className="w-full max-w-md shadow-lg border-0 transition-all duration-300 relative">
-        {/* Language Selector - Top Right */}
-        <div className="absolute top-3 right-3 z-10">
-          <Select value={language} onValueChange={(value) => setLanguage(value as 'zh-TW' | 'en')}>
-            <SelectTrigger className="w-[110px] h-8 bg-white/90 hover:bg-white border border-gray-200 text-xs shadow-sm px-2">
-              <div className="flex items-center gap-2">
-                <Languages className="w-3 h-3" />
-                <SelectValue />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="zh-TW">{t('language.zhTW')}</SelectItem>
-              <SelectItem value="en">{t('language.en')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
         <CardHeader
           className="space-y-1 rounded-t-lg transition-colors pt-10 pb-4"
           style={{ backgroundColor: 'var(--df-header)', color: 'white' }}

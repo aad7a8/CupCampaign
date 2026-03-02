@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Loader2 } from 'lucide-react';
 import { useLanguage } from '@/app/contexts/LanguageContext';
 import { format } from 'date-fns';
-import { zhTW, enUS } from 'date-fns/locale';
+import { zhTW } from 'date-fns/locale';
 
 interface HistoryTop5Props {
   records: HistoryRecord[];
@@ -30,8 +30,8 @@ const getPlatformLabel = (platform: HistoryRecord['platform']) => {
 };
 
 export function HistoryTop5({ records, loading, onView }: HistoryTop5Props) {
-  const { t, language } = useLanguage();
-  const locale = language === 'zh-TW' ? zhTW : enUS;
+  const { t } = useLanguage();
+  const locale = zhTW;
 
   if (loading) {
     return (
