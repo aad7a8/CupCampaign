@@ -17,6 +17,7 @@ import { useBobaFakeProgress } from '@/app/hooks/useBobaFakeProgress';
 import { TeaFlowProgressBar } from '@/app/components/ui/TeaFlowProgressBar';
 import { useTeaFlowFakeProgress } from '@/app/hooks/useTeaFlowFakeProgress';
 import { Instagram, Facebook, Link2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 type Stage = 'waiting_input' | 'copy_generating' | 'copy_ready' | 'image_generating' | 'done';
 
@@ -35,8 +36,9 @@ interface ImageMeta {
 }
 
 export function ContentAuditCenter() {
-  // Mock products data
-  const products = ['烤糖奶蓋草莓紅', '青蛙汁'];
+// 替換原本的寫死資料，改用 State 儲存從 API 抓來的產品列表
+  const [products, setProducts] = useState<{id: string, name: string}[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
   // State definitions
   const [stage, setStage] = useState<Stage>('waiting_input');
@@ -68,6 +70,36 @@ export function ContentAuditCenter() {
     reset: teaFlowReset
   } = useTeaFlowFakeProgress({ expectedMs: 60000 });
   const [showTeaFlowProgress, setShowTeaFlowProgress] = useState(false);
+
+  // 從後端 API 取得產品列表
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setIsLoadingProducts(true);
+      try {
+        const response = await fetch('/api/admin/products', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include', // 確保夾帶 JWT Cookie
+        });
+        
+        const resJson = await response.json();
+        
+        if (resJson.status === 'success' && resJson.data) {
+          // 將回傳的產品資料存入 state
+          setProducts(resJson.data);
+        } else {
+          toast.error(resJson.message || '無法取得菜單資料');
+        }
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        toast.error('網路連線錯誤，無法取得產品列表');
+      } finally {
+        setIsLoadingProducts(false);
+      }
+    };
+
+    fetchProducts();
+  }, []);
 
   // Reset & Handlers
   const resetState = () => {
@@ -366,15 +398,24 @@ export function ContentAuditCenter() {
                 <Select
                   value={selectedProduct}
                   onValueChange={handleProductChange}
-                  disabled={stage === 'copy_generating' || stage === 'image_generating'}
+                  disabled={isLoadingProducts || stage === 'copy_generating' || stage === 'image_generating'}
                 >
                   <SelectTrigger className="h-9">
-                    <SelectValue placeholder="請選擇產品" />
+                    <SelectValue placeholder={isLoadingProducts ? "載入產品中..." : "請選擇產品"} />
                   </SelectTrigger>
-                  <SelectContent>
-                    {products.map((product) => (
-                      <SelectItem key={product} value={product}>{product}</SelectItem>
-                    ))}
+                  <SelectContent className="max-h-[300px]">
+                    {/* 使用從 API 取得的 products 進行渲染 */}
+                    {products.length > 0 ? (
+                      products.map((product) => (
+                        <SelectItem key={product.id} value={product.name}>
+                          {product.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="none" disabled>
+                        尚無產品資料
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

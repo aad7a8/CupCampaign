@@ -1,7 +1,7 @@
 from flask import jsonify, request, make_response, current_app
 from app.models import (
     db, Product, Tenant, MarketingContent, Users, Store,
-    Ingredient, ProductComposition, PlatformToken, ContentImage, WeatherForecast
+    Ingredient, PlatformToken, ContentImage, WeatherForecast, HolidayCalendar
 )
 from app.image_services import call_nano_banana_logic
 from app.AI_services import generate_drink_post
@@ -173,8 +173,8 @@ def register_routes(app):
                         "category": p.category,
                         "name": p.name,
                         "price": float(p.price) if p.price else 0,
-                        "ingredients_display": ", ".join([comp.ingredient.name for comp in p.compositions])
-                                               if hasattr(p, 'compositions') else "",
+                        # 修改點：因為移除了 ProductComposition，GET 時暫時回傳空字串
+                        "ingredients_display": "", 
                         "scraped_at": p.scraped_at.strftime('%Y-%m-%d %H:%M:%S') if p.scraped_at else None
                     } for p in products
                 ]
@@ -187,6 +187,7 @@ def register_routes(app):
                 return jsonify({"status": "error", "message": "請至少輸入一項產品"}), 400
             try:
                 for item in product_list:
+                    # 1. 建立新飲品
                     new_product = Product(
                         tenant_id=target_tenant_id,
                         name=item.get('name'),
@@ -197,26 +198,22 @@ def register_routes(app):
                     db.session.add(new_product)
                     db.session.flush()
 
+                    # 2. 處理原物料 (全域共用架構，不再綁定 tenant_id 與 ProductComposition)
                     raw_ingredients = item.get('ingredients', '')
                     if raw_ingredients:
                         ing_names = [n.strip() for n in raw_ingredients.replace('，', ',').split(',') if n.strip()]
                         for ing_name in ing_names:
-                            ing = Ingredient.query.filter_by(
-                                tenant_id=target_tenant_id,
-                                name=ing_name
-                            ).first()
+                            # 直接以名稱查詢全域原物料庫
+                            ing = Ingredient.query.filter_by(name=ing_name).first()
+                            
+                            # 若資料庫無此原物料，則新增至全域庫
                             if not ing:
-                                ing = Ingredient(tenant_id=target_tenant_id, name=ing_name)
+                                ing = Ingredient(name=ing_name)
                                 db.session.add(ing)
                                 db.session.flush()
-                            
-                            composition = ProductComposition(
-                                product_id=new_product.id,
-                                ingredient_id=ing.id
-                            )
-                            db.session.add(composition)
+                                
                 db.session.commit()
-                return jsonify({"status": "success", "message": "菜單與配方已儲存！"})
+                return jsonify({"status": "success", "message": "菜單與原物料庫已更新儲存！"})
             except Exception as e:
                 db.session.rollback()
                 return jsonify({"status": "error", "message": f"儲存失敗: {str(e)}"}), 500
@@ -275,12 +272,8 @@ def register_routes(app):
     # ==========================================
     # Upload API
     # ==========================================
-# 確保裝飾器路徑包含 /api (對應 Nginx 設定)
     @app.route('/api/upload_and_generate', methods=['POST'])
     def upload_and_generate_route():
-        # --- 以下所有內容都必須縮排 4 個空格 ---
-        
-        # 1. 檢查檔案是否存在
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "未提供圖片檔案"}), 400
         
@@ -288,21 +281,16 @@ def register_routes(app):
         if file.filename == '':
             return jsonify({"status": "error", "message": "檔名為空"}), 400
 
-        # 2. 取得前端傳來的文案 (formData.append('prompt', ...))
         user_prompt = request.form.get('prompt', '')
 
         try:
-            # 3. 呼叫 Service 邏輯
             result = call_nano_banana_logic(file)
-
-            # 4. 根據結果回傳 Response
             if result.get("status") == "success":
                 return jsonify(result), 200
             else:
                 return jsonify(result), 500
                 
         except Exception as e:
-            # 萬一 Service 噴錯，回傳 JSON 格式的錯誤訊息
             return jsonify({"status": "error", "message": str(e)}), 500
     
     @app.route('/api/upload', methods=['POST'])
@@ -498,7 +486,6 @@ def register_routes(app):
     @app.route('/api/weather', methods=['GET'])
     def get_weather():
         """ 獲取使用者所屬門市縣市的一週天氣預報 """
-        # 1. 身分驗證 (從 Cookie 讀取 JWT)
         token = request.cookies.get('access_token')
         if not token:
             return jsonify({"status": "error", "message": "請先登入"}), 401
@@ -509,23 +496,24 @@ def register_routes(app):
         except Exception:
             return jsonify({"status": "error", "message": "認證失效，請重新登入"}), 401
 
-        # 2. 取得使用者的門市與城市資訊 (注意：您的 Model 是 Users 不是 User)
         user = Users.query.get(user_id)
         if not user or not user.store:
             return jsonify({"status": "error", "message": "找不到使用者的門市資料"}), 404
         
         user_city = user.store.location_city
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # 3. 查詢該城市的天氣預報 (今天及未來的預報)
-        today = date.today()
         try:
-            # 篩選條件：符合門市所在縣市，且日期大於等於今天，按日期遞增排序
             forecasts = WeatherForecast.query.filter(
                 WeatherForecast.city_name == user_city,
                 WeatherForecast.forecast_date >= today
             ).order_by(WeatherForecast.forecast_date.asc()).all()
 
-            # 4. 將結果轉換為 JSON 格式
+            if not forecasts:
+                forecasts = WeatherForecast.query.filter(
+                    WeatherForecast.city_name == user_city
+                ).order_by(WeatherForecast.forecast_date.asc()).limit(7).all()
+
             weather_data = [
                 {
                     "date": f.forecast_date.strftime("%Y-%m-%d"),
@@ -546,3 +534,43 @@ def register_routes(app):
         except Exception as e:
             print(f"Weather Fetch Error: {e}")
             return jsonify({"status": "error", "message": "無法讀取天氣資料"}), 500
+
+    # ==========================================
+    # Holiday Calendar API
+    # ==========================================
+    @app.route('/api/holidays', methods=['GET'])
+    def get_holidays():
+        """ 獲取系統內建的節慶與行銷檔期 """
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({"status": "error", "message": "請先登入"}), 401
+        
+        try:
+            # 驗證 Token 是否有效
+            jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except Exception:
+            return jsonify({"status": "error", "message": "認證失效，請重新登入"}), 401
+
+        try:
+            # 撈取所有檔期，並以日期由近到遠排序
+            holidays = HolidayCalendar.query.order_by(HolidayCalendar.target_date.asc()).all()
+
+            holiday_data = [
+                {
+                    "id": h.id,
+                    "holiday_name": h.holiday_name,
+                    # 將 datetime 格式化為前端可解析的 ISO 格式字串
+                    "target_date": h.target_date.strftime("%Y-%m-%dT00:00:00") if h.target_date else None,
+                    "category_type": h.category_type,
+                    "note": h.note
+                } for h in holidays
+            ]
+
+            return jsonify({
+                "status": "success",
+                "data": holiday_data
+            })
+
+        except Exception as e:
+            print(f"Holiday Fetch Error: {e}")
+            return jsonify({"status": "error", "message": "無法讀取節慶檔期資料"}), 500

@@ -2,6 +2,7 @@ flask
 flask-sqlalchemy
 flask-bcrypt
 flask-cors
+Flask-Migrate
 psycopg2-binary
 python-dotenv
 PyJWT
