@@ -136,10 +136,9 @@ class HolidayCalendar(db.Model):
 class ExternalTrends(db.Model):
     __tablename__ = 'external_trends'
     id = db.Column(db.Integer, primary_key=True)
-    hashtag = db.Column(db.String(255))
-    summary = db.Column(db.Text)       
-    mention_count = db.Column(db.Integer, default=0) 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow) 
+    hashtag = db.Column(db.Text)
+    summary = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 # 12. 價格追蹤表 (PriceHistory)
 class PriceHistory(db.Model):

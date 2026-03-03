@@ -1,12 +1,10 @@
 import asyncio
 import logging
-from datetime import datetime, timedelta
-from functools import partial
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from spiders import news_spider, news_analyzer
+from spiders import news_analyzer
 from spiders.weather_spider import WeatherSpider
 from spiders.beverage_spider import run_beverage_pipeline
 
@@ -18,36 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 async def run_news_pipeline():
-    """Run news scrape then analyze (sequential)."""
-    date_str = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
-    formatted_date = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]}"
+    """Run Gemini Google Search to find trending topics."""
+    logger.info("=== Starting news trends pipeline ===")
 
-    logger.info("=== Starting news pipeline for %s ===", formatted_date)
-
-    # Step 1: Scrape news (blocking I/O → run in thread)
     try:
-        articles = await asyncio.to_thread(news_spider.run, date_str=date_str)
-        logger.info("News scrape complete: %d articles", len(articles))
+        await news_analyzer.run()
+        logger.info("News trends pipeline complete")
     except Exception:
-        logger.exception("News scrape failed")
-        return
-
-    if not articles:
-        logger.warning("No articles scraped, skipping analysis")
-        return
-
-    # Step 2: Analyze news (already async)
-    input_file = f"/app/data/ettoday_{formatted_date}.json"
-    try:
-        result = await news_analyzer.run(input_file)
-        if result:
-            logger.info(
-                "News analysis complete: %d groups (%d passed filter)",
-                result["stats"]["num_groups"],
-                result["stats"]["passed_filter"],
-            )
-    except Exception:
-        logger.exception("News analysis failed")
+        logger.exception("News trends pipeline failed")
 
 
 async def run_weather_pipeline():
