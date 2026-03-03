@@ -692,6 +692,27 @@ def register_routes(app):
         except:
             return jsonify({"status": "error", "message": "認證失效"}), 401
         
+        try:
+            ingredients = Ingredient.query.all()
+            
+            ingredient_list = []
+            for ing in ingredients:
+                ingredient_list.append({
+                    "id": ing.id,
+                    "name": ing.name,
+                    # 💡 JSON 格式在 SQLAlchemy 中會自動轉成 Python list/dict
+                    # 這裡直接回傳即可，前端 React 拿到後可以直接 map
+                    "monthly_status": ing.monthly_status_matrix if ing.monthly_status_matrix else []
+                })
+
+            return jsonify({
+                "status": "success",
+                "count": len(ingredient_list),
+                "data": ingredient_list
+            })
+
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"讀取原物料失敗: {str(e)}"}), 500
         
 
 
