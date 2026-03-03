@@ -673,6 +673,30 @@ def register_routes(app):
         except Exception as e:
             print(f"Weather Fetch Error: {e}")
             return jsonify({"status": "error", "message": "無法讀取天氣資料"}), 500  
+        
+
+    # ==========================================
+    # Ingredient API
+    # ==========================================
+    @app.route('/api/ingredient')
+    def get_ingredient():
+        # 1. 驗證 JWT
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({"status": "error", "message": "請先登入"}), 401
+        
+        try:
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            user_record = Users.query.get(decoded.get("user"))
+            current_store_id = user_record.store_id 
+        except:
+            return jsonify({"status": "error", "message": "認證失效"}), 401
+        
+        
+
+
+
+    
 
 
 
