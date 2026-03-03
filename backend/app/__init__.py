@@ -47,14 +47,15 @@ def create_app():
     register_routes(app)
 
     # ==========================================
-    # 自動重建資料表並初始化資料 (合併區塊)
+    # 自動重建資料表並初始化資料
     # ==========================================
     with app.app_context():
-        from app.models import HolidayCalendar, Tenant
+        from app.models import HolidayCalendar, Tenant, Ingredient
         from sqlalchemy import text
         
         # 確保基礎表格存在
-        db.create_all() 
+        db.create_all()
+        print("✅ 所有資料表已建立完成") 
 
         # --- 1. 初始化節慶資料 ---
         try:
@@ -134,5 +135,38 @@ def create_app():
         except Exception as e:
             db.session.rollback()
             print(f"⚠️ 品牌初始化提示: {e}")
+
+        # --- 3. 初始化原物料(水果)資料 ---
+        try:
+            TARGET_FRUITS = [
+                "草莓", "百香果-其他", "鳳梨-金鑽鳳梨", "甜橙-柳橙", 
+                "雜柑-檸檬", "酪梨-進口", "葡萄柚-紅肉", "番石榴-紅心", 
+                "芒果-其他", "蘋果-惠"
+            ]
+
+            print("🍎 檢查原物料(水果)資料初始化...")
+            
+            added_fruit_count = 0
+            for fruit_name in TARGET_FRUITS:
+                # 檢查該水果是否已經存在於資料庫
+                existing_fruit = Ingredient.query.filter_by(name=fruit_name).first()
+                
+                # 如果沒有，則建立它 (monthly_status_matrix 預設為空陣列 '[]')
+                if not existing_fruit:
+                    new_fruit = Ingredient(name=fruit_name)
+                    db.session.add(new_fruit)
+                    added_fruit_count += 1
+            
+            # 提交變更
+            db.session.commit()
+            
+            if added_fruit_count > 0:
+                print(f"✅ 成功新增 {added_fruit_count} 種水果！目前共有 {Ingredient.query.count()} 種原物料。")
+            else:
+                print(f"✅ 水果皆已存在，無須新增。目前共有 {Ingredient.query.count()} 種原物料。")
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"⚠️ 原物料初始化提示: {e}")
 
     return app

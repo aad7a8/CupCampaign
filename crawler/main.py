@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from threading import Event
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -9,6 +9,7 @@ from apscheduler.triggers.cron import CronTrigger
 from spiders import news_spider, news_analyzer
 from spiders.weather_spider import WeatherSpider
 from spiders.beverage_spider import run_beverage_pipeline
+from spiders.fruit_spider import run_crawler as run_fruit_crawler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,10 +69,26 @@ def run_beverage_task():
     except Exception:
         logger.exception("Beverage pipeline failed")
 
+def run_fruit_pipeline():
+    """Run fruit price scrape and update."""
+    logger.info("=== Starting fruit pipeline ===")
+    try:
+        # 自動計算日期：每次往前抓 3 天，確保長假或休市的資料能完美銜接
+        start_date = (datetime.now() - timedelta(days=3)).date()
+        # 轉換為民國年格式
+        start_str = f"{start_date.year - 1911}.{start_date.month:02d}.{start_date.day:02d}"
+        
+        logger.info(f"Targeting fruit data from {start_str} to today.")
+        run_fruit_crawler(start_str)
+        logger.info("Fruit pipeline complete")
+    except Exception:
+        logger.exception("Fruit pipeline failed")
+
 def run_all():
     """Run all spiders."""
     run_weather_pipeline()
     run_beverage_task()
+    run_fruit_pipeline()
 
 
 def main():

@@ -36,8 +36,8 @@ interface ImageMeta {
 }
 
 export function ContentAuditCenter() {
-// 替換原本的寫死資料，改用 State 儲存從 API 抓來的產品列表
-  const [products, setProducts] = useState<{id: string, name: string}[]>([]);
+  // 替換原本的寫死資料，改用 State 儲存從 API 抓來的產品列表
+  const [products, setProducts] = useState<{ id: string, name: string }[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
 
   // State definitions
@@ -81,9 +81,9 @@ export function ContentAuditCenter() {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include', // 確保夾帶 JWT Cookie
         });
-        
+
         const resJson = await response.json();
-        
+
         if (resJson.status === 'success' && resJson.data) {
           // 將回傳的產品資料存入 state
           setProducts(resJson.data);
@@ -149,7 +149,7 @@ export function ContentAuditCenter() {
       {
         id: 'survival',
         name: '社畜生存',
-        icon: '🔋', 
+        icon: '🔋',
         content: `🧨 過年比上班還累？這杯是你的避難所！\n面對親戚連環拷問「年終、結婚、買房」，根本是比上班更累的無薪情緒加班。加上低溫來襲，你需要的不是溝通，而是${productName} 🍓！\n把濃郁烤糖奶蓋當耳塞，用酸甜草莓紅堵住靈魂拷問。每一口醇厚奶香，都在撫平被問到千瘡百孔的心。撐住啊各位！喝完這杯，我們才有力氣微笑點頭說「阿姨您說得對」。\n#老賴茶棧 #烤糖奶蓋草莓紅 #過年生存指南`
       },
       {
@@ -161,7 +161,7 @@ export function ContentAuditCenter() {
       {
         id: 'ritual',
         name: '質感儀式',
-        icon: '✨', 
+        icon: '✨',
         content: `🍓 喧囂退去，留一份冬日的溫柔給自己。\n在拜年與喧鬧的縫隙裡，外頭仍吹著初春冷風，你需要為自己按下的暫停鍵。${productName}，不只是手搖，更是專屬的感官儀式。\n指尖傳來杯身的溫熱，鼻息間是炙烤後的迷人糖香；綿密奶蓋如冬雪覆蓋在草莓紅茶上，酸甜與濃郁交織出美好時光的切片。這個初二午後，給自己留一首歌的時間，享受這份季節限定的小確幸。\n#老賴茶棧 #烤糖奶蓋草莓紅 #儀式感`
       }
     ];
@@ -213,7 +213,7 @@ export function ContentAuditCenter() {
 
     setStage('image_generating');
     setGenerationStatus('generating');
-    
+
     generateMockImages(uploadedImage)
       .then((images) => {
         setGeneratedImages(images);
@@ -268,7 +268,7 @@ export function ContentAuditCenter() {
     teaFlowStart();
     setStage('image_generating');
     setGenerationStatus('generating');
-  
+
     try {
       const responseBlob = await fetch(uploadedImage!);
       const blob = await responseBlob.blob();
@@ -309,55 +309,55 @@ export function ContentAuditCenter() {
   };
 
   const handleConfirmPublish = async () => {
-  if (!selectedGeneratedImageUrl) {
-    setErrorMessage('請先選擇要發佈的圖片');
-    return;
-  }
+    if (!selectedGeneratedImageUrl) {
+      setErrorMessage('請先選擇要發佈的圖片');
+      return;
+    }
 
-  try {
-    setStage('image_generating'); // 藉用此狀態顯示 Loading 
-    setErrorMessage(null);
+    try {
+      setStage('image_generating'); // 藉用此狀態顯示 Loading 
+      setErrorMessage(null);
 
-    // 1. 將 Blob URL 轉換為 Base64
-    const response = await fetch(selectedGeneratedImageUrl);
-    const blob = await response.blob();
-    
-    const reader = new FileReader();
-    reader.readAsDataURL(blob);
-    reader.onloadend = async () => {
-      const base64data = reader.result;
+      // 1. 將 Blob URL 轉換為 Base64
+      const response = await fetch(selectedGeneratedImageUrl);
+      const blob = await response.blob();
 
-      // 2. 準備傳送給後端的資料
-      const payload = {
-        product_name: selectedProduct,
-        final_text: selectedCopyText,
-        image_data: base64data,
-        platform: publishPlatform, // 傳送目前選中的平台：'ig', 'fb', 或 'sync'
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = async () => {
+        const base64data = reader.result;
+
+        // 2. 準備傳送給後端的資料
+        const payload = {
+          product_name: selectedProduct,
+          final_text: selectedCopyText,
+          image_data: base64data,
+          platform: publishPlatform, // 傳送目前選中的平台：'ig', 'fb', 或 'sync'
+        };
+
+        const res = await fetch('/api/content/publish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const result = await res.json();
+
+        if (result.status === 'success') {
+          // 可以加上一個成功提示，例如使用 Toast 或簡單的 alert
+          alert(result.message);
+          setStage('done');
+        } else {
+          setErrorMessage(result.message || '發佈失敗，請稍後再試');
+          setStage('done');
+        }
       };
-
-      const res = await fetch('/api/content/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const result = await res.json();
-      
-      if (result.status === 'success') {
-        // 可以加上一個成功提示，例如使用 Toast 或簡單的 alert
-        alert(result.message); 
-        setStage('done');
-      } else {
-        setErrorMessage(result.message || '發佈失敗，請稍後再試');
-        setStage('done');
-      }
-    };
-  } catch (error) {
-    console.error('Publish Error:', error);
-    setErrorMessage('發佈過程中發生連線錯誤');
-    setStage('done');
-  }
-};
+    } catch (error) {
+      console.error('Publish Error:', error);
+      setErrorMessage('發佈過程中發生連線錯誤');
+      setStage('done');
+    }
+  };
 
   const selectedCopyText = selectedCopyId
     ? copyCandidates.find(c => c.id === selectedCopyId)?.editedText ?? copyCandidates.find(c => c.id === selectedCopyId)?.content ?? ''
@@ -381,7 +381,6 @@ export function ContentAuditCenter() {
           <Card className="shadow-sm">
             <CardContent className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label className="text-sm font-medium">產品照片上傳</Label>
                 <div className="flex justify-center w-full">
                   <div className="w-full max-w-[300px]">
                     <ImageUploader
@@ -575,22 +574,22 @@ export function ContentAuditCenter() {
                 >
                   <Instagram className="w-4 h-4 mr-2" /> IG
                 </Button>
-                
+
                 {/* FB 按鈕 */}
                 <Button
                   variant={publishPlatform === 'fb' ? 'default' : 'outline'}
                   size="sm"
                   className={cn(
                     "flex-1 transition-colors shadow-sm",
-                    publishPlatform === 'fb' 
-                      ? "bg-[#c5a484] hover:bg-[#b39374] text-white border-transparent" 
+                    publishPlatform === 'fb'
+                      ? "bg-[#c5a484] hover:bg-[#b39374] text-white border-transparent"
                       : "bg-white hover:bg-slate-50 text-foreground"
                   )}
                   onClick={() => setPublishPlatform('fb')}
                 >
                   <Facebook className="w-4 h-4 mr-2" /> Facebook
                 </Button>
-                
+
                 {/* 同步發佈按鈕 */}
                 <Button
                   variant={publishPlatform === 'sync' ? 'default' : 'outline'}
@@ -608,21 +607,21 @@ export function ContentAuditCenter() {
               </div>
             </div>
 
-          <Button
-            className="w-full h-[42px] text-md font-medium shadow-sm hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: 'var(--df-accent)', color: 'white' }}
-            // --- 修改處：綁定點擊事件 ---
-            onClick={handleConfirmPublish}
-            // --- 修改處：調整 Disable 邏輯 ---
-            disabled={!selectedImage || teaFlowStatus === 'running' || stage === 'image_generating'}
-          >
-            {/* --- 修改處：增加 Loading 圖示 --- */}
-            {stage === 'image_generating' ? (
-              <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> 處理中...</>
-            ) : (
-              <><Send className="w-5 h-5 mr-2" /> 確認發布</>
-            )}
-          </Button>
+            <Button
+              className="w-full h-[42px] text-md font-medium shadow-sm hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: 'var(--df-accent)', color: 'white' }}
+              // --- 修改處：綁定點擊事件 ---
+              onClick={handleConfirmPublish}
+              // --- 修改處：調整 Disable 邏輯 ---
+              disabled={!selectedImage || teaFlowStatus === 'running' || stage === 'image_generating'}
+            >
+              {/* --- 修改處：增加 Loading 圖示 --- */}
+              {stage === 'image_generating' ? (
+                <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> 處理中...</>
+              ) : (
+                <><Send className="w-5 h-5 mr-2" /> 確認發布</>
+              )}
+            </Button>
           </div>
         </div>
       </div>
