@@ -154,24 +154,14 @@ export function ContentAuditCenter() {
   // 當 generationResult 變化時，解析為 CopyStyle[] 並填入 copyCandidates
   useEffect(() => {
     if (generationResult && bobaStatus === 'done') {
-      const copies: CopyStyle[] = [];
-      if (generationResult.facebook) {
-        copies.push({
-          id: 'facebook',
-          name: 'Facebook 文案',
-          icon: '📘',
-          content: generationResult.facebook,
-        });
-      }
-      if (generationResult.instagram) {
-        copies.push({
-          id: 'instagram',
-          name: 'Instagram 文案',
-          icon: '📸',
-          content: generationResult.instagram,
-        });
-      }
-      if (copies.length > 0) {
+      if (generationResult.options && generationResult.options.length > 0) {
+        const icons = ['🔥', '💡', '🌟'];
+        const copies: CopyStyle[] = generationResult.options.map((opt, i) => ({
+          id: `topic-${i}`,
+          name: opt.topic_title,
+          icon: icons[i % icons.length],
+          content: opt.threads_copy,
+        }));
         setCopyCandidates(copies);
         setStage('copy_ready');
       }

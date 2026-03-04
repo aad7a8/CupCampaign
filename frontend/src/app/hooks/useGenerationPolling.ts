@@ -1,19 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+interface CopyOption {
+  topic_title: string;
+  bridge_idea: string;
+  threads_copy: string;
+  ig_copy: string;
+  hook_line: string;
+  score?: number;
+}
+
 interface GenerationResult {
-  facebook: string;
-  instagram: string;
-  fb_img_prompt?: string;
-  ig_img_prompt?: string;
+  options: CopyOption[];
 }
 
 interface StartGenerationPayload {
   drink_name: string;
-  news_context?: string;
-  promotion_info?: string;
-  mood_tone?: string;
-  weather_info?: string;
-  holiday_info?: string;
 }
 
 export function useGenerationPolling() {

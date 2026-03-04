@@ -20,7 +20,7 @@ export default defineConfig({
     proxy: {
       // 當前端請求以 /api 開頭時，自動轉發到 Flask
       '/api': {
-        target: 'http://127.0.0.1:5000', // 確保這裡與您 Flask 執行的位址一致
+        target: process.env.API_TARGET || 'http://127.0.0.1:5000',
         changeOrigin: true,
         secure: false,
       },
