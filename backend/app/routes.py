@@ -4,7 +4,7 @@ from app.models import (
     Ingredient, PlatformToken, ContentImage, WeatherForecast, HolidayCalendar,
     ExternalTrends
 )
-from app.image_services import call_nano_banana_logic
+from app.image_flow import process_image_generation
 from app.AI_services import run_generation_pipeline
 from datetime import datetime, timezone, timedelta, date
 from app.publish_workflow import run_workflow, auto_post_to_ig
@@ -16,6 +16,8 @@ import json
 import requests
 import base64
 import threading
+from PIL import Image as PILImage
+
 
 SECRET_KEY = os.getenv("MY_APP_SECRET_KEY", "your_fallback_key")
 
@@ -299,9 +301,17 @@ def register_routes(app):
         app_instance = current_app._get_current_object()
         thread = threading.Thread(
             target=run_generation_pipeline,
-            args=(app_instance, task_id, generation_tasks, product_info,
-                  trends_summary, trends_hashtags, weather_info, holiday_info),
-        )
+            # 位置參數只給 3 個：app, id, store
+            args=(app_instance, task_id, generation_tasks), 
+            # 剩餘的全部包進 kwargs，對應 image_flow.py 的 **input_data
+            kwargs={
+                "product_info": product_info,
+                "trends_summary": trends_summary,
+                "trends_hashtags": trends_hashtags,
+                "weather_info": weather_info,
+                "holiday_info": holiday_info
+    }
+) 
         thread.start()
 
         return jsonify({"status": "success", "task_id": task_id})
@@ -333,63 +343,87 @@ def register_routes(app):
     # ==========================================
     # Upload API
     # ==========================================
+    image_generation_tasks = {}
+
     @app.route('/api/upload_and_generate', methods=['POST'])
     def upload_and_generate_route():
+        """ 改良版：非同步啟動影像生成任務 """
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "未提供圖片檔案"}), 400
         
         file = request.files['file']
-        if file.filename == '':
-            return jsonify({"status": "error", "message": "檔名為空"}), 400
-
-        user_prompt = request.form.get('prompt', '')
-
-        try:
-            result = call_nano_banana_logic(file)
-            if result.get("status") == "success":
-                return jsonify(result), 200
-            else:
-                return jsonify(result), 500
-                
-        except Exception as e:
-            return jsonify({"status": "error", "message": str(e)}), 500
-    
-    @app.route('/api/upload', methods=['POST'])
-    def handle_upload():
-        token = request.cookies.get('access_token')
-        if not token:
-            return jsonify({"status": "error", "message": "請先登入"}), 401
-        try:
-            decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-            user_record = Users.query.get(decoded.get("user"))
-            if not user_record:
-                return jsonify({"status": "error", "message": "用戶不存在"}), 404
-        except Exception:
-            return jsonify({"status": "error", "message": "認證失效"}), 401
-
-        image_file = request.files.get('file')
-        if not image_file:
-            return jsonify({"status": "error", "message": "請選擇圖片檔案"}), 400
+        product_name = request.form.get('product_name', '產品')
+        copywriting = request.form.get('copywriting', '')
+        weather = request.form.get('weather', '')
+        festival = request.form.get('festival', '')
 
         try:
-            filename = f"{uuid.uuid4()}-{image_file.filename}"
-            file_data = image_file.read()
-            minio_client.put_object(
-                BUCKET_NAME,
-                filename,
-                io.BytesIO(file_data),
-                length=len(file_data),
-                content_type=image_file.content_type
+            # 將檔案讀入記憶體並轉為 PIL，這部分很快，可以同步執行
+            img_data = file.read()
+            pil_img = PILImage.open(io.BytesIO(img_data)).convert("RGB")
+
+            # 建立唯一任務 ID
+            task_id = str(uuid.uuid4())
+            image_generation_tasks[task_id] = {
+                "status": "processing",
+                "image_data": None,
+                "error": None,
+                "created_at": datetime.now(timezone.utc)
+            }
+
+            # 定義背景執行的 Thread 任務
+            def run_async_image_flow(t_id, p_name, p_copy, p_weather, p_fest, p_img):
+                try:
+                    # 執行耗時的 CrewAI Flow
+                    base64_image = process_image_generation(
+                        product_name=p_name,
+                        copywriting=p_copy,
+                        weather=p_weather,
+                        festival=p_fest,
+                        pil_image=p_img
+                    )
+                    
+                    if base64_image:
+                        image_generation_tasks[t_id].update({
+                            "status": "success",
+                            "image_data": base64_image
+                        })
+                    else:
+                        image_generation_tasks[t_id].update({
+                            "status": "error",
+                            "error": "模型回傳內容為空"
+                        })
+                except Exception as e:
+                    image_generation_tasks[t_id].update({
+                        "status": "error",
+                        "error": str(e)
+                    })
+
+            # 啟動 Thread 進行非同步處理
+            thread = threading.Thread(
+                target=run_async_image_flow,
+                args=(task_id, product_name, copywriting, weather, festival, pil_img)
             )
-            minio_endpoint = os.getenv("MINIO_ENDPOINT", "minio:9000")
-            image_url = f"http://{minio_endpoint}/{BUCKET_NAME}/{filename}"
-            return jsonify({
-                "status": "success",
-                "image_url": image_url
-            })
-        except Exception as e:
-            return jsonify({"status": "error", "message": f"圖片上傳失敗: {str(e)}"}), 500
+            thread.start()
 
+            # 立即回傳 ID 給前端
+            return jsonify({
+                "status": "pending", 
+                "task_id": task_id,
+                "message": "影像生成已啟動，系統正在搜尋背景並合成中..."
+            })
+
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"啟動影像任務失敗: {str(e)}"}), 500
+
+    @app.route('/api/upload_and_generate/status/<task_id>', methods=['GET'])
+    def get_image_generation_status(task_id):
+        """ 提供前端輪詢影像生成結果 """
+        task = image_generation_tasks.get(task_id)
+        if not task:
+            return jsonify({"status": "error", "message": "找不到影像任務"}), 404
+        
+        return jsonify(task)
     # ==========================================
     # AI Image Generation API
     # ==========================================

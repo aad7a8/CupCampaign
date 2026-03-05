@@ -16,3 +16,6 @@ langchain-google-genai
 opik
 Pillow
 numpy
+pydantic
+tavily-python
+crewai[tools]
