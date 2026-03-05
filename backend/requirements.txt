@@ -11,5 +11,8 @@ google-genai
 gunicorn
 boto3
 requests
+langgraph
+langchain-google-genai
+opik
 Pillow
 numpy

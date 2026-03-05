@@ -79,6 +79,34 @@ Client :80 ──> Nginx (reverse proxy)
 - `GET  /api/content/history` — Content history
 - `POST /api/admin/platform/bind` — Bind Facebook page
 
+## Development Mode
+
+使用 `docker-compose.dev.yml` 啟動開發環境，支援前端 HMR 和後端 auto-reload，改 code 即時生效，無需重建 image。
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+| Service      | 說明                                | URL                     |
+| ------------ | ----------------------------------- | ----------------------- |
+| **frontend** | Vite dev server (HMR)               | http://localhost:5173   |
+| **backend**  | Flask debug mode (auto-reload)      | http://localhost:5000   |
+| **adminer**  | Database 管理介面                    | http://localhost:8080   |
+| **postgres** | PostgreSQL                          | localhost:5432          |
+| **minio**    | MinIO Console                       | http://localhost:9001   |
+| **crawler**  | Scrapy crawler (build from Dockerfile) | —                    |
+
+**與 production 的差異：**
+- frontend 使用 `node:20` 跑 Vite dev server，而非 Nginx 靜態檔
+- backend 使用 Flask `--debug` 模式，而非 Gunicorn
+- crawler volume mount 原始碼，改 spider 不需重建 image
+- 移除 ngrok，新增 adminer
+
+**需要手動重啟的情況：**
+- 更新 `requirements.txt` → `docker compose -f docker-compose.dev.yml up -d --build backend`
+- 更新 crawler 依賴 → `docker compose -f docker-compose.dev.yml build --no-cache crawler`
+- 更新 `.env` → `docker compose -f docker-compose.dev.yml up -d`
+
 ## Useful Commands
 
 ```bash

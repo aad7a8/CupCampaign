@@ -1,10 +1,11 @@
 from flask import jsonify, request, make_response, current_app
 from app.models import (
     db, Product, Tenant, MarketingContent, Users, Store,
-    Ingredient, PlatformToken, ContentImage, WeatherForecast, HolidayCalendar
+    Ingredient, PlatformToken, ContentImage, WeatherForecast, HolidayCalendar,
+    ExternalTrends
 )
 from app.image_services import call_nano_banana_logic
-from app.AI_services import generate_drink_post
+from app.AI_services import run_generation_pipeline
 from datetime import datetime, timezone, timedelta, date
 from app.publish_workflow import run_workflow, auto_post_to_ig
 import os
@@ -17,6 +18,12 @@ import base64
 import threading
 
 SECRET_KEY = os.getenv("MY_APP_SECRET_KEY", "your_fallback_key")
+
+# 全域 task store（in-memory，足夠此規模使用）
+generation_tasks = {}
+
+# Task 清理閾值（秒）
+TASK_EXPIRY_SECONDS = 300  # 5 分鐘
 
 def register_routes(app):
     from app import minio_client, BUCKET_NAME
@@ -240,34 +247,88 @@ def register_routes(app):
             return jsonify({"status": "error", "message": "請求格式錯誤"}), 400
 
         selected_drink = data.get('drink_name')
-        news_context   = data.get('news_context', "")
-        promotion_info = data.get('promotion_info', "")
-        mood_tone      = data.get('mood_tone', "親切")
-        weather_info   = data.get('weather_info', "")
-        holiday_info   = data.get('holiday_info', "")
 
         product = Product.query.filter_by(name=selected_drink, tenant_id=current_tenant_id).first()
         if not product:
             return jsonify({"status": "error", "message": f"找不到飲品: {selected_drink}"}), 404
 
         product_info = f"產品：{product.name}，類別：{product.category}，價格：{product.price}元"
-        try:
-            ai_result_dict = generate_drink_post(
-                product_info=product_info,
-                news_context=news_context,
-                promotion_info=promotion_info,
-                mood_tone=mood_tone,
-                weather_info=weather_info,
-                holiday_info=holiday_info
+
+        # 自動注入 ExternalTrends
+        trends_summary = ""
+        trends_hashtags = ""
+        latest_trends = ExternalTrends.query.order_by(ExternalTrends.created_at.desc()).first()
+        if latest_trends:
+            trends_summary = latest_trends.summary or ""
+            trends_hashtags = latest_trends.hashtag or ""
+
+        # 自動注入天氣資訊（使用者門市城市的今日天氣）
+        weather_info = ""
+        user_city = user_record.store.location_city if user_record.store else None
+        if user_city:
+            today = date.today()
+            forecast = WeatherForecast.query.filter(
+                WeatherForecast.city_name == user_city,
+                WeatherForecast.forecast_date == today,
+            ).first()
+            if forecast:
+                weather_info = f"{user_city} 今日天氣：{forecast.condition}，{forecast.min_temp}-{forecast.max_temp}°C，降雨機率 {forecast.rain_prob}%"
+
+        # 自動注入未來 7 天內節日
+        holiday_info = ""
+        today = date.today()
+        upcoming = HolidayCalendar.query.filter(
+            HolidayCalendar.target_date >= today,
+            HolidayCalendar.target_date <= today + timedelta(days=7),
+        ).order_by(HolidayCalendar.target_date.asc()).all()
+        if upcoming:
+            holiday_info = "，".join(
+                f"{h.holiday_name}（{h.target_date.strftime('%m/%d')}）" for h in upcoming
             )
-            return jsonify({
-                "status": "success",
-                "generated_content": ai_result_dict,
-                "platform": "all",
-                "message": "文案生成成功，請注意：此文案尚未儲存，關閉頁面後將消失。"
-            })
-        except Exception as e:
-            return jsonify({"status": "error", "message": f"AI 生成失敗: {str(e)}"}), 500
+
+        # 建立非同步 task
+        task_id = str(uuid.uuid4())
+        generation_tasks[task_id] = {
+            "stage": "pending",
+            "progress": 0,
+            "message": "排隊中...",
+            "result": None,
+            "created_at": datetime.now(timezone.utc),
+        }
+
+        app_instance = current_app._get_current_object()
+        thread = threading.Thread(
+            target=run_generation_pipeline,
+            args=(app_instance, task_id, generation_tasks, product_info,
+                  trends_summary, trends_hashtags, weather_info, holiday_info),
+        )
+        thread.start()
+
+        return jsonify({"status": "success", "task_id": task_id})
+
+    @app.route('/api/generate_post/status/<task_id>', methods=['GET'])
+    def get_generation_status(task_id):
+        # 清理過期的 tasks
+        now = datetime.now(timezone.utc)
+        expired_ids = [
+            tid for tid, t in generation_tasks.items()
+            if t.get("stage") in ("done", "error")
+            and (now - t.get("created_at", now)).total_seconds() > TASK_EXPIRY_SECONDS
+        ]
+        for tid in expired_ids:
+            generation_tasks.pop(tid, None)
+
+        task = generation_tasks.get(task_id)
+        if not task:
+            return jsonify({"status": "error", "message": "Task not found"}), 404
+
+        return jsonify({
+            "status": "success",
+            "stage": task["stage"],
+            "progress": task["progress"],
+            "message": task["message"],
+            "result": task["result"],
+        })
 
     # ==========================================
     # Upload API
