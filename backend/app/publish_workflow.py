@@ -103,7 +103,7 @@ def run_workflow(app, product_name, caption, image_binary_data, store_id, platfo
             from app.models import MarketingContent, ContentImage
             new_content = MarketingContent(
                 store_id=store_id,
-                generated_text=caption,
+                final_text=caption,
                 product_name=product_name,
                 platform=platform,
                 created_at=datetime.now(timezone.utc)
@@ -114,7 +114,7 @@ def run_workflow(app, product_name, caption, image_binary_data, store_id, platfo
             new_image = ContentImage(
                 content_id=new_content.id,
                 minio_url=internal_url,
-                prompt_used="User confirmed AI generated image"
+              
             )
             db.session.add(new_image)
             db.session.commit()
