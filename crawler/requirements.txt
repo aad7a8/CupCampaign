@@ -19,3 +19,5 @@ pandas
 selenium
 webdriver-manager
 Pillow
+crewai[tools]
+tavily-python

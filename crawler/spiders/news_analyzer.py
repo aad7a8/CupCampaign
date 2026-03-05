@@ -29,7 +29,7 @@ from app.models import ExternalTrends
 logger = logging.getLogger(__name__)
 
 N = 10  # Number of concurrent searches
-MODEL = "gemini-3-flash-preview"
+MODEL = "gemini-2.5-flash"
 
 
 # ============================================================

@@ -10,7 +10,7 @@ export function DashboardPage() {
   const [weatherData, setWeatherData] = useState(null);
   const [selectedDayIdx, setSelectedDayIdx] = useState(0);
 
-// --- 檔期 Effect 1：從 API 獲取資料 ---
+  // --- 檔期 Effect 1：從 API 獲取資料 ---
   useEffect(() => {
     const fetchHolidays = async () => {
       try {
@@ -20,7 +20,7 @@ export function DashboardPage() {
           headers: { 'Content-Type': 'application/json' },
         });
         const resJson = await response.json();
-        
+
         if (resJson.status === 'success' && resJson.data) {
           setCalendarData(resJson.data);
         }
@@ -68,7 +68,7 @@ export function DashboardPage() {
           credentials: 'include',
         });
         const resJson = await response.json();
-        
+
         if (resJson.status === 'success' && resJson.data && resJson.data.length > 0) {
           // 1. 取得「今天」的凌晨 00:00:00 時間戳作為比較基準
           const today = new Date();
@@ -186,25 +186,24 @@ export function DashboardPage() {
                 {/* 一週七天小圖示 */}
                 <div className="grid grid-cols-7 gap-2">
                   {weatherData.forecasts.map((day, idx) => (
-                    <button 
-                      key={idx} 
-                      onClick={() => setSelectedDayIdx(idx)} 
-                      className={`flex flex-col items-center justify-center py-4 rounded-lg border transition-all ${
-                        selectedDayIdx === idx 
-                          ? 'border-blue-400 bg-blue-50 shadow-sm scale-105' 
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedDayIdx(idx)}
+                      className={`flex flex-col items-center justify-center py-4 rounded-lg border transition-all ${selectedDayIdx === idx
+                          ? 'border-blue-400 bg-blue-50 shadow-sm scale-105'
                           : 'border-transparent bg-white hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {/* 星期幾：加粗且字體變大 (text-base) */}
                       <span className={`font-bold mb-1 ${selectedDayIdx === idx ? 'text-blue-600' : 'text-gray-700'} text-base`}>
                         {getWeekday(day.date)}
                       </span>
-                      
+
                       {/* 日期：清晰的 MM/DD (text-xs) */}
                       <span className="text-xs text-gray-400 mb-2">
                         {getShortDate(day.date)}
                       </span>
-                      
+
                       <span className="text-2xl mb-1">{getWeatherIcon(day.condition)}</span>
                       <span className="text-sm font-bold text-gray-800">{day.max_temp}°</span>
                     </button>
@@ -259,7 +258,7 @@ export function DashboardPage() {
         </Card>
 
         {/* Card 4: 近期檔期倒數 */}
-          <Card className="border-l-4 border-purple-400 flex flex-col shadow-sm">
+        <Card className="border-l-4 border-purple-400 flex flex-col shadow-sm">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg flex items-center justify-between text-gray-800">
               <div className="flex items-center gap-2">

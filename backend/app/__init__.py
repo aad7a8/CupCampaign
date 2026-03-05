@@ -136,34 +136,46 @@ def create_app():
             db.session.rollback()
             print(f"⚠️ 品牌初始化提示: {e}")
 
-        # --- 3. 初始化原物料(水果)資料 ---
+# --- 3. 初始化原物料(水果)資料 (包含 12 個月價格矩陣) ---
         try:
-            TARGET_FRUITS = [
-                "草莓", "百香果-其他", "鳳梨-金鑽鳳梨", "甜橙-柳橙", 
-                "雜柑-檸檬", "酪梨-進口", "葡萄柚-紅肉", "番石榴-紅心", 
-                "芒果-其他", "蘋果-惠"
-            ]
+            # 1: 最佳(低價), 2: 適合, 3: 偏高, 4: 高價, 0: 無資料(非產季)
+            FRUIT_MATRIX_MAP = {
+                "草莓": [4, 3, 1, 1, 1, 1, 0, 0, 0, 1, 3, 4],
+                "百香果-其他": [1, 1, 2, 2, 3, 2, 3, 3, 4, 2, 3, 2],
+                "鳳梨-金鑽鳳梨": [1, 2, 2, 3, 2, 1, 1, 4, 4, 4, 4, 2],
+                "甜橙-柳橙": [3, 4, 4, 3, 3, 3, 0, 1, 2, 2, 3, 3],
+                "雜柑-檸檬": [4, 4, 3, 3, 4, 2, 1, 1, 1, 2, 3, 4],
+                "酪梨-進口": [1, 1, 1, 3, 4, 3, 4, 3, 2, 1, 2, 1],
+                "葡萄柚-紅肉": [3, 3, 3, 4, 3, 1, 0, 3, 2, 2, 3, 3],
+                "番石榴-紅心": [4, 2, 2, 1, 2, 2, 1, 1, 2, 2, 4, 4],
+                "芒果-其他": [2, 3, 4, 4, 2, 1, 1, 1, 1, 1, 2, 3],
+                "蘋果-惠": [1, 2, 4, 0, 0, 0, 3, 1, 1, 1, 1, 3]
+            }
 
-            print("🍎 檢查原物料(水果)資料初始化...")
+            print("🍎 正在同步原物料(水果)採購建議矩陣...")
             
             added_fruit_count = 0
-            for fruit_name in TARGET_FRUITS:
-                # 檢查該水果是否已經存在於資料庫
+            updated_fruit_count = 0
+
+            for fruit_name, matrix in FRUIT_MATRIX_MAP.items():
                 existing_fruit = Ingredient.query.filter_by(name=fruit_name).first()
                 
-                # 如果沒有，則建立它 (monthly_status_matrix 預設為空陣列 '[]')
                 if not existing_fruit:
-                    new_fruit = Ingredient(name=fruit_name)
+                    # 不存在則建立，並塞入矩陣
+                    new_fruit = Ingredient(name=fruit_name, monthly_status_matrix=matrix)
                     db.session.add(new_fruit)
                     added_fruit_count += 1
+                else:
+                    # 若已存在，則覆蓋更新矩陣 (確保舊資料能更新到最新分析結果)
+                    existing_fruit.monthly_status_matrix = matrix
+                    updated_fruit_count += 1
             
-            # 提交變更
             db.session.commit()
             
-            if added_fruit_count > 0:
-                print(f"✅ 成功新增 {added_fruit_count} 種水果！目前共有 {Ingredient.query.count()} 種原物料。")
+            if added_fruit_count > 0 or updated_fruit_count > 0:
+                print(f"✅ 水果矩陣更新完成！(新增: {added_fruit_count}, 更新: {updated_fruit_count})")
             else:
-                print(f"✅ 水果皆已存在，無須新增。目前共有 {Ingredient.query.count()} 種原物料。")
+                print(f"✅ 水果矩陣已是最新狀態。")
 
         except Exception as e:
             db.session.rollback()
