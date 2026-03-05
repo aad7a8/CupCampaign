@@ -62,7 +62,7 @@ services:
     image: ngrok/ngrok:latest
     restart: always
     environment:
-      - NGROK_AUTHTOKEN=36V1eixHkhCyCZUh3sJDZm0OXBt_a54BsBmmsncGqAstWxHj # 替換成你的 Token
+      - NGROK_AUTHTOKEN=${NGROK_AUTHTOKEN}
     command:
       - "http"
       - "minio:9000" # 這裡指向你的 MinIO 服務名稱與埠號
