@@ -113,7 +113,7 @@ class TeaMasterNanoBananaFlow(Flow):
         task = Task(
             description=dedent(f"""
                 請為產品「{ctx.product_name}」撰寫繪圖指令。
-                核心任務：維持上傳圖片中的杯子結構，僅更換背景。
+                核心任務：維持上傳圖片中的杯子結構，僅更換背景，不要在杯子上產生任何文字。
                 
                 【杯體保護 (1.9 權重)】:
                 - (Original product cup structure and branding:1.9)

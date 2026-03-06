@@ -7,9 +7,14 @@ from datetime import datetime, timezone
 from minio import Minio
 from app import db 
 
-# --- 根據你的 .env 圖片修正變數讀取 ---
-IG_ID = os.getenv("IG_ID")
-ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN")
+# --- 環境變數讀取 ---
+# IG_ID = os.getenv("IG_ID")
+
+# IG_ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN")
+
+FB_PAGE_ID = os.getenv("FB_PAGE_ID")
+# FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
+
 GRAPH_URL = os.getenv("IG_GRAPH_URL", "https://graph.facebook.com/v25.0")
 
 # MinIO 連線資訊
@@ -20,12 +25,34 @@ minio_client = Minio(
     secure=False
 )
 
+def auto_post_to_fb(image_url, caption):
+    """Facebook Page 發佈邏輯 (透過 URL 抓取)"""
+    try:
+        print(f"📘 [FB] 開始發佈貼文至粉絲專頁，圖片 URL: {image_url}", flush=True)
+        # FB 發佈圖片貼文的端點
+        publish_url = f"{GRAPH_URL}/{FB_PAGE_ID}/photos"
+        
+        payload = {
+            'url': image_url,
+            'caption': caption,
+            'access_token': FB_ACCESS_TOKEN
+        }
+        
+        res_publish = requests.post(publish_url, data=payload).json()
+        
+        if 'id' in res_publish:
+            print(f"🎉 [FB] 貼文發布成功！ID: {res_publish['id']}", flush=True)
+        else:
+            print(f"❌ [FB] 發布失敗: {res_publish}", flush=True)
+    except Exception as e:
+        print(f"💥 [FB] API 呼叫異常: {str(e)}", flush=True)
+
 def auto_post_to_ig(image_url, caption):
     """Instagram 發佈邏輯"""
     try:
         print(f"📸 [IG] 開始建立媒體容器，URL: {image_url}", flush=True)
         container_url = f"{GRAPH_URL}/{IG_ID}/media"
-        payload = {'image_url': image_url, 'caption': caption, 'access_token': ACCESS_TOKEN}
+        payload = {'image_url': image_url, 'caption': caption, 'access_token': IG_ACCESS_TOKEN}
         
         res_container = requests.post(container_url, data=payload).json()
         if 'id' not in res_container:
@@ -37,7 +64,7 @@ def auto_post_to_ig(image_url, caption):
         time.sleep(15) 
 
         publish_url = f"{GRAPH_URL}/{IG_ID}/media_publish"
-        res_publish = requests.post(publish_url, data={'creation_id': creation_id, 'access_token': ACCESS_TOKEN}).json()
+        res_publish = requests.post(publish_url, data={'creation_id': creation_id, 'access_token': IG_ACCESS_TOKEN}).json()
         
         if 'id' in res_publish:
             print(f"🎉 [IG] 貼文發布成功！ID: {res_publish['id']}", flush=True)
@@ -53,7 +80,6 @@ def ensure_bucket_exists(bucket_name):
             print(f"🪣 [MinIO] 建立儲存桶: {bucket_name}", flush=True)
             minio_client.make_bucket(bucket_name)
             
-            # 設定 Bucket Policy 為 Read-Only (讓 IG 伺服器能抓圖)
             policy = {
                 "Version": "2012-10-17",
                 "Statement": [{
@@ -69,19 +95,19 @@ def ensure_bucket_exists(bucket_name):
                 }]
             }
             minio_client.set_bucket_policy(bucket_name, json.dumps(policy))
-            print(f"✅ [MinIO] {bucket_name} 已建立並設定公開權限", flush=True)
+            print(f"✅ [MinIO] {bucket_name} 已設定公開權限", flush=True)
     except Exception as e:
         print(f"⚠️ [MinIO] 檢查/建立儲存桶失敗: {str(e)}", flush=True)
 
 def run_workflow(app, product_name, caption, image_binary_data, store_id, platform):
-    """完整發佈流程"""
+    """完整發佈流程 (支援 FB, IG, Sync)"""
     with app.app_context():
         try:
             print(f"🚀 [Workflow] 啟動流程: {product_name} (平台: {platform})", flush=True)
             
             # 1. 確保並上傳至 MinIO
             bucket_name = "tea-master-images"
-            ensure_bucket_exists(bucket_name) # 修正 NoSuchBucket 關鍵點
+            ensure_bucket_exists(bucket_name)
             
             file_name = f"post_{int(time.time())}.png"
             minio_client.put_object(
@@ -95,9 +121,10 @@ def run_workflow(app, product_name, caption, image_binary_data, store_id, platfo
             internal_url = f"http://{os.getenv('MINIO_ENDPOINT')}/{bucket_name}/{file_name}"
             print(f"✅ [Workflow] MinIO 上傳成功: {internal_url}", flush=True)
 
-            # 2. 轉換為外部連結
+            # 2. 轉換為外部連結 (讓 Meta 伺服器可以抓到圖)
             external_url = internal_url.replace("minio:9000", os.getenv("EXTERNAL_DOMAIN"))
-            external_url = external_url.replace("http://", "https://")
+            if not external_url.startswith("https://"):
+                external_url = external_url.replace("http://", "https://")
 
             # 3. 存入資料庫
             from app.models import MarketingContent, ContentImage
@@ -114,13 +141,15 @@ def run_workflow(app, product_name, caption, image_binary_data, store_id, platfo
             new_image = ContentImage(
                 content_id=new_content.id,
                 minio_url=internal_url,
-              
             )
             db.session.add(new_image)
             db.session.commit()
             print("✅ [Workflow] 資料庫寫入成功", flush=True)
 
-            # 4. 執行發布
+            # 4. 根據平台執行發布
+            if platform in ['fb', 'sync']:
+                auto_post_to_fb(external_url, caption)
+                
             if platform in ['ig', 'sync']:
                 auto_post_to_ig(external_url, caption)
 

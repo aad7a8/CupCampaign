@@ -89,18 +89,6 @@ services:
     networks:
       - app-network
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    restart: always
-    environment:
-      - NGROK_AUTHTOKEN=36V1eixHkhCyCZUh3sJDZm0OXBt_a54BsBmmsncGqAstWxHj
-    command:
-      - "http"
-      - "minio:9000"
-    ports:
-      - "4040:4040"
-    networks:
-      - app-network
 
   crawler:
     build:
