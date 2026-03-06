@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -7,6 +8,7 @@ from apscheduler.triggers.cron import CronTrigger
 from spiders import news_analyzer
 from spiders.weather_spider import WeatherSpider
 from spiders.beverage_spider import run_beverage_pipeline
+from spiders.fruit_spider import run_crawler as run_fruit_crawler
 
 logging.basicConfig(
     level=logging.INFO,
@@ -18,7 +20,6 @@ logger = logging.getLogger(__name__)
 async def run_news_pipeline():
     """Run Gemini Google Search to find trending topics."""
     logger.info("=== Starting news trends pipeline ===")
-
     try:
         await news_analyzer.run()
         logger.info("News trends pipeline complete")
@@ -47,12 +48,31 @@ async def run_beverage_task():
         logger.exception("Beverage pipeline failed")
 
 
+async def run_fruit_pipeline():
+    """Run fruit price scrape and update."""
+    logger.info("=== Starting fruit pipeline ===")
+    try:
+        # 預設抓取過去 3 天的資料，確保休市或假日後能補齊資料
+        start_date = (datetime.now() - timedelta(days=3)).date()
+        start_str = f"{start_date.year - 1911}.{start_date.month:02d}.{start_date.day:02d}"
+        
+        logger.info(f"Targeting fruit data from {start_str} to today.")
+        
+        # 使用 to_thread 避免同步的 requests 與 DB 操作阻塞事件迴圈
+        await asyncio.to_thread(run_fruit_crawler, start_str)
+        
+        logger.info("Fruit pipeline complete")
+    except Exception:
+        logger.exception("Fruit pipeline failed")
+
+
 async def run_all():
     """Run all spiders concurrently."""
     await asyncio.gather(
         run_weather_pipeline(),
         run_beverage_task(),
         run_news_pipeline(),
+        run_fruit_pipeline(), # 已將水果爬蟲加入並發清單
     )
 
 
