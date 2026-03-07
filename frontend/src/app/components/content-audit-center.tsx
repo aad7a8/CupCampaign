@@ -253,87 +253,87 @@ export function ContentAuditCenter() {
   };
 
   const handleSelectCopyStyle = async (copyId: string) => {
-    // --- [保留] 原本的 UI 與進度條狀態設定 ---
-    setSelectedCopyId(copyId);
-    setErrorMessage(null);
-    const copy = copyCandidates.find(c => c.id === copyId);
-    const styleName = copy?.name || '此風格';
-    const finalPrompt = copy?.editedText ?? copy?.content;
-    setSelectedStyleName(styleName);
+      // 1. UI 狀態初始化
+      setSelectedCopyId(copyId);
+      setErrorMessage(null);
+      const copy = copyCandidates.find(c => c.id === copyId);
+      const styleName = copy?.name || '此風格';
+      const finalPrompt = copy?.editedText ?? copy?.content;
+      setSelectedStyleName(styleName);
 
-    setShowTeaFlowProgress(true);
-    teaFlowStart();
-    setStage('image_generating');
-    setGenerationStatus('generating');
-    // ------------------------------------
+      setShowTeaFlowProgress(true);
+      teaFlowStart();
+      setStage('image_generating');
+      setGenerationStatus('generating');
+      setGeneratedImages([]); // 清空舊圖
 
-    try {
-      // 1. 準備圖片與參數
-      const responseBlob = await fetch(uploadedImage!);
-      const blob = await responseBlob.blob();
-      const formData = new FormData();
-      formData.append('file', blob, 'product_image.jpg');
-      formData.append('product_name', selectedProduct);
-      formData.append('copywriting', finalPrompt || '');
+      try {
+        // 2. 準備圖片與參數
+        const responseBlob = await fetch(uploadedImage!);
+        const blob = await responseBlob.blob();
+        const formData = new FormData();
+        formData.append('file', blob, 'product_image.jpg');
+        formData.append('product_name', selectedProduct);
+        formData.append('copywriting', finalPrompt || '');
 
-      // 2. 呼叫後端 API 啟動非同步任務
-      const response = await fetch('/api/upload_and_generate', {
-        method: 'POST',
-        body: formData,
-      });
+        // 3. 呼叫後端 API
+        const response = await fetch('/api/upload_and_generate', {
+          method: 'POST',
+          body: formData,
+        });
 
-      const startData = await response.json();
+        const startData = await response.json();
 
-      // 判斷後端是否成功啟動任務並回傳 task_id
-      if (startData.status === 'pending' && startData.task_id) {
-        const taskId = startData.task_id;
+        if (startData.status === 'pending' && startData.task_id) {
+          const taskId = startData.task_id;
 
-        // 3. 啟動輪詢計時器 (每 3 秒檢查一次)
-        const pollTimer = setInterval(async () => {
-          try {
-            const statusRes = await fetch(`/api/upload_and_generate/status/${taskId}`);
-            const data = await statusRes.json();
+          // 4. 啟動輪詢計時器
+          const pollTimer = setInterval(async () => {
+            try {
+              const statusRes = await fetch(`/api/upload_and_generate/status/${taskId}`);
+              const data = await statusRes.json();
 
-            if (data.status === 'success') {
-              // 生成成功：清除計時器，執行原本的成功邏輯
+              if (data.status === 'success') {
+                clearInterval(pollTimer);
+                teaFlowFinish();
+
+                // --- 重點修改：處理三張圖片 ---
+                // 假設後端回傳格式為 { "status": "success", "images": ["base64_1", "base64_2", "base64_3"] }
+                if (data.images && Array.isArray(data.images)) {
+                  const newImages: GeneratedImage[] = data.images.map((b64: string, index: number) => ({
+                    id: `${Date.now()}-${index}`,
+                    url: b64.startsWith('data:') ? b64 : `data:image/png;base64,${b64}`,
+                    alt: `${styleName} 方案 ${index + 1}`
+                  }));
+
+                  setTimeout(() => {
+                    setShowTeaFlowProgress(false);
+                    setGeneratedImages(newImages); // 存入三張圖
+                    setGenerationStatus('done');
+                    setStage('done');
+                    setSelectedImage(newImages[0].id); // 預設選取第一張
+                  }, 1200);
+                } else {
+                  throw new Error("後端未回傳圖片陣列");
+                }
+
+              } else if (data.status === 'error') {
+                clearInterval(pollTimer);
+                throw new Error(data.error || '影像合成過程中發生錯誤');
+              }
+            } catch (pollError: any) {
               clearInterval(pollTimer);
-              teaFlowFinish();
-
-              const newGeneratedImage: GeneratedImage = {
-                id: Date.now().toString(),
-                url: data.image_data, // 這裡是後端轉好的 Base64
-                alt: styleName
-              };
-
-              setTimeout(() => {
-                setShowTeaFlowProgress(false);
-                setGeneratedImages([newGeneratedImage]);
-                setGenerationStatus('done');
-                setStage('done');
-                setSelectedImage(newGeneratedImage.id);
-              }, 1200);
-
-            } else if (data.status === 'error') {
-              // 生成失敗：清除計時器，拋出錯誤
-              clearInterval(pollTimer);
-              throw new Error(data.error || '影像合成過程中發生錯誤');
+              handleImageError(pollError.message);
             }
-            // 如果 data.status 為 'processing'，則不做事，等待下一次 Interval
+          }, 3000);
 
-          } catch (pollError: any) {
-            clearInterval(pollTimer);
-            handleImageError(pollError.message);
-          }
-        }, 3000);
-
-      } else {
-        throw new Error(startData.message || '伺服器拒絕了生圖請求');
+        } else {
+          throw new Error(startData.message || '伺服器拒絕了生圖請求');
+        }
+      } catch (error: any) {
+        handleImageError(error.message);
       }
-
-    } catch (error: any) {
-      handleImageError(error.message);
-    }
-  };
+    };
 
   // 輔助函式：統一處理錯誤時的 UI 狀態回歸
   const handleImageError = (msg: string) => {

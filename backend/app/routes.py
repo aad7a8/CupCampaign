@@ -383,7 +383,7 @@ def register_routes(app):
 
     @app.route('/api/upload_and_generate', methods=['POST'])
     def upload_and_generate_route():
-        """ 改良版：非同步啟動影像生成任務 """
+        """ 改良版：支持一次產出三張圖的非同步任務 """
         if 'file' not in request.files:
             return jsonify({"status": "error", "message": "未提供圖片檔案"}), 400
         
@@ -394,24 +394,22 @@ def register_routes(app):
         festival = request.form.get('festival', '')
 
         try:
-            # 將檔案讀入記憶體並轉為 PIL，這部分很快，可以同步執行
             img_data = file.read()
             pil_img = PILImage.open(io.BytesIO(img_data)).convert("RGB")
 
-            # 建立唯一任務 ID
             task_id = str(uuid.uuid4())
+            # 修改點 1：初始化任務狀態，將儲存欄位改為複數型態 images
             image_generation_tasks[task_id] = {
                 "status": "processing",
-                "image_data": None,
+                "images": [], # 這裡改為空清單
                 "error": None,
                 "created_at": datetime.now(timezone.utc)
             }
 
-            # 定義背景執行的 Thread 任務
             def run_async_image_flow(t_id, p_name, p_copy, p_weather, p_fest, p_img):
                 try:
-                    # 執行耗時的 CrewAI Flow
-                    base64_image = process_image_generation(
+                    # 執行 Flow，現在會回傳 List[str]
+                    generated_images_list = process_image_generation(
                         product_name=p_name,
                         copywriting=p_copy,
                         weather=p_weather,
@@ -419,15 +417,16 @@ def register_routes(app):
                         pil_image=p_img
                     )
                     
-                    if base64_image:
+                    # 修改點 2：檢查清單是否有效
+                    if generated_images_list and len(generated_images_list) > 0:
                         image_generation_tasks[t_id].update({
                             "status": "success",
-                            "image_data": base64_image
+                            "images": generated_images_list # 儲存完整的 Base64 清單
                         })
                     else:
                         image_generation_tasks[t_id].update({
                             "status": "error",
-                            "error": "模型回傳內容為空"
+                            "error": "模型未能成功生成任何圖片"
                         })
                 except Exception as e:
                     image_generation_tasks[t_id].update({
@@ -435,30 +434,31 @@ def register_routes(app):
                         "error": str(e)
                     })
 
-            # 啟動 Thread 進行非同步處理
             thread = threading.Thread(
                 target=run_async_image_flow,
                 args=(task_id, product_name, copywriting, weather, festival, pil_img)
             )
             thread.start()
 
-            # 立即回傳 ID 給前端
             return jsonify({
                 "status": "pending", 
                 "task_id": task_id,
-                "message": "影像生成已啟動，系統正在搜尋背景並合成中..."
+                "message": "併行產圖任務已啟動，預計生成 3 款方案..."
             })
 
         except Exception as e:
             return jsonify({"status": "error", "message": f"啟動影像任務失敗: {str(e)}"}), 500
 
+    # ------------------------------------------------------------
+    # 修改點 3：查詢狀態的 Route 也需要確保回傳正確的欄位
+    # ------------------------------------------------------------
     @app.route('/api/upload_and_generate/status/<task_id>', methods=['GET'])
-    def get_image_generation_status(task_id):
-        """ 提供前端輪詢影像生成結果 """
+    def get_upload_status(task_id):
         task = image_generation_tasks.get(task_id)
         if not task:
-            return jsonify({"status": "error", "message": "找不到影像任務"}), 404
+            return jsonify({"status": "error", "message": "找不到此任務"}), 404
         
+        # 確保這裡回傳的是 images
         return jsonify(task)
     # ==========================================
     # AI Image Generation API

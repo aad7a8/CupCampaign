@@ -59,6 +59,7 @@ services:
     command:
       - "http"
       - "minio:9000" # 這裡指向你的 MinIO 服務名稱與埠號
+      - "--domain=${NGROK_DOMAIN}"
     ports:
       - "4040:4040" # ngrok 本地控制台
     networks:
@@ -84,19 +85,6 @@ services:
       - "8080:8080"
     depends_on:
       - postgres
-    networks:
-      - app-network
-
-  ngrok:
-    image: ngrok/ngrok:latest
-    restart: always
-    environment:
-      - NGROK_AUTHTOKEN=36V1eixHkhCyCZUh3sJDZm0OXBt_a54BsBmmsncGqAstWxHj
-    command:
-      - "http"
-      - "minio:9000"
-    ports:
-      - "4040:4040"
     networks:
       - app-network
 

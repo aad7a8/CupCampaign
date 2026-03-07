@@ -25,7 +25,7 @@ interface GeneratedGalleryProps {
   stage?: Stage;
 }
 
-// Mock 生成圖片：使用 Canvas 對原圖做簡單變化
+// Mock 生成圖片邏輯保持不變（供開發測試使用）
 export function generateMockImages(originalImageUrl: string): Promise<GeneratedImage[]> {
   return new Promise((resolve) => {
     const img = new Image();
@@ -46,17 +46,13 @@ export function generateMockImages(originalImageUrl: string): Promise<GeneratedI
         canvas.height = height;
       });
 
-      // Variant 1: 亮度/對比調整
       ctx1.drawImage(img, 0, 0);
       const imageData1 = ctx1.getImageData(0, 0, width, height);
       for (let i = 0; i < imageData1.data.length; i += 4) {
-        imageData1.data[i] = Math.min(255, imageData1.data[i] * 1.1); // R
-        imageData1.data[i + 1] = Math.min(255, imageData1.data[i + 1] * 1.1); // G
-        imageData1.data[i + 2] = Math.min(255, imageData1.data[i + 2] * 1.1); // B
+        imageData1.data[i] = Math.min(255, imageData1.data[i] * 1.1);
       }
       ctx1.putImageData(imageData1, 0, 0);
 
-      // Variant 2: 輕微模糊 + 漸層 overlay
       ctx2.drawImage(img, 0, 0);
       ctx2.filter = 'blur(1px)';
       ctx2.drawImage(img, 0, 0);
@@ -67,21 +63,12 @@ export function generateMockImages(originalImageUrl: string): Promise<GeneratedI
       ctx2.fillStyle = gradient;
       ctx2.fillRect(0, 0, width, height);
 
-      // Variant 3: 銳化 + 不同裁切（中心裁切 90%）
       const cropSize = Math.min(width, height) * 0.9;
       const cropX = (width - cropSize) / 2;
       const cropY = (height - cropSize) / 2;
       canvas3.width = cropSize;
       canvas3.height = cropSize;
       ctx3.drawImage(img, cropX, cropY, cropSize, cropSize, 0, 0, cropSize, cropSize);
-      const imageData3 = ctx3.getImageData(0, 0, cropSize, cropSize);
-      // 簡單銳化
-      for (let i = 0; i < imageData3.data.length; i += 4) {
-        imageData3.data[i] = Math.min(255, imageData3.data[i] * 1.05);
-        imageData3.data[i + 1] = Math.min(255, imageData3.data[i + 1] * 1.05);
-        imageData3.data[i + 2] = Math.min(255, imageData3.data[i + 2] * 1.05);
-      }
-      ctx3.putImageData(imageData3, 0, 0);
 
       resolve([
         { id: '1', url: canvas1.toDataURL() },
@@ -126,7 +113,7 @@ export function GeneratedGallery({
           </div>
         )}
 
-        {/* copy_generating: Show placeholder (copy is generating, no image yet) */}
+        {/* copy_generating: Show placeholder */}
         {stage === 'copy_generating' && (
           <div className="text-center py-8 text-sm text-muted-foreground border-2 border-dashed border-gray-200 rounded-lg">
             <div className="space-y-2">
@@ -136,7 +123,7 @@ export function GeneratedGallery({
           </div>
         )}
 
-        {/* copy_ready: Show placeholder (waiting for user to select copy style) */}
+        {/* copy_ready: Show placeholder */}
         {stage === 'copy_ready' && (
           <div className="text-center py-8 text-sm text-muted-foreground border-2 border-dashed border-gray-200 rounded-lg">
             <div className="space-y-2">
@@ -159,6 +146,7 @@ export function GeneratedGallery({
             {generationStatus === 'generating' && (
               <div className="space-y-3">
                 <div className="grid grid-cols-3 gap-2">
+                  {/* 修改處：併行生成時，顯示三個 Skeleton 對應三個產出方案 */}
                   {[1, 2, 3].map((i) => (
                     <Skeleton key={i} className="aspect-square rounded-lg" />
                   ))}
@@ -178,6 +166,7 @@ export function GeneratedGallery({
         {/* done: Show generated images */}
         {stage === 'done' && generationStatus === 'done' && generatedImages.length > 0 && (
           <div className="grid grid-cols-3 gap-2">
+            {/* 修改處：這裡會自動遍歷 generatedImages 陣列並渲染出所有生成結果 */}
             {generatedImages.map((img) => {
               const isSelected = selectedImage === img.id;
               return (
