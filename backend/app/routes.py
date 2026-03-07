@@ -228,6 +228,42 @@ def register_routes(app):
                 return jsonify({"status": "error", "message": f"儲存失敗: {str(e)}"}), 500
 
     # ==========================================
+    # Ingredient Matrix API (水果採購矩陣)
+    # ==========================================
+    @app.route('/api/ingredients/matrix', methods=['GET'])
+    def get_ingredient_matrix():
+        """ 獲取所有具備採購矩陣的原物料(水果)資料 """
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({"status": "error", "message": "請先登入"}), 401
+        
+        try:
+            # 驗證 Token
+            jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except Exception:
+            return jsonify({"status": "error", "message": "認證失效，請重新登入"}), 401
+
+        try:
+            # 查詢所有有填寫 monthly_status_matrix 的原物料
+            # 注意：這裡假設 Ingredient 模型中已有 monthly_status_matrix 欄位
+            ingredients = Ingredient.query.filter(Ingredient.monthly_status_matrix.isnot(None)).all()
+            
+            # 將資料轉換成前端需要的字典格式 (例如: {"草莓": [4,3,1...], "芒果": [...]})
+            matrix_map = {}
+            for ing in ingredients:
+                # 確保資料庫讀出來的是 list (如果是存成 JSON 字串，需依照情況做 json.loads(ing.monthly_status_matrix))
+                matrix_map[ing.name] = ing.monthly_status_matrix
+            
+            return jsonify({
+                "status": "success",
+                "data": matrix_map
+            })
+
+        except Exception as e:
+            print(f"Ingredient Matrix Fetch Error: {e}")
+            return jsonify({"status": "error", "message": "無法讀取採購矩陣資料"}), 500
+
+    # ==========================================
     # AI Content Generation API
     # ==========================================
     @app.route('/api/generate_post', methods=['POST'])
@@ -669,3 +705,49 @@ def register_routes(app):
         except Exception as e:
             print(f"Holiday Fetch Error: {e}")
             return jsonify({"status": "error", "message": "無法讀取節慶檔期資料"}), 500
+
+    # ==========================================
+    # External Trends API
+    # ==========================================
+    @app.route('/api/trends/latest', methods=['GET'])
+    def get_latest_trends():
+        """ 獲取最新一筆 AI 統整的社群熱搜趨勢 """
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({"status": "error", "message": "請先登入"}), 401
+        
+        try:
+            # 驗證 Token 是否有效
+            jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        except Exception:
+            return jsonify({"status": "error", "message": "認證失效，請重新登入"}), 401
+
+        try:
+            # 撈取最新的一筆趨勢資料
+            latest_trend = ExternalTrends.query.order_by(ExternalTrends.created_at.desc()).first()
+
+            # 如果資料庫還沒有任何資料，回傳空字串讓前端妥善處理
+            if not latest_trend:
+                return jsonify({
+                    "status": "success",
+                    "data": {
+                        "summary": "",
+                        "hashtag": "",
+                        "created_at": None
+                    }
+                })
+
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "id": latest_trend.id,
+                    "summary": latest_trend.summary,
+                    "hashtag": latest_trend.hashtag,
+                    # 轉成 ISO 格式，方便前端 React 進行時間解析與格式化
+                    "created_at": latest_trend.created_at.isoformat() if latest_trend.created_at else None
+                }
+            })
+
+        except Exception as e:
+            print(f"Trends Fetch Error: {e}")
+            return jsonify({"status": "error", "message": "無法讀取社群趨勢資料"}), 500
