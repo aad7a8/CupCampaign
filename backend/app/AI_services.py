@@ -168,7 +168,7 @@ def _extract_revision_notes(reviewed: list | None) -> str:
 # ============================================================
 
 def supervisor(state: CreativeState) -> Command:
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.5)
+    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0.5)
     summary = _build_state_summary(state)
     response = llm.invoke([
         SystemMessage(content=DIRECTOR_SYSTEM_PROMPT),
@@ -183,7 +183,7 @@ def supervisor(state: CreativeState) -> Command:
     return Command(goto=next_node, update={"director_notes": decision.get("notes", "")})
 
 def curator(state: CreativeState) -> Command:
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.8)
+    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0.8)
     prompt = CURATOR_PROMPT.format(
         trends_summary=state.trends_summary or "無趨勢資料，請發揮創意",
         trends_hashtags=state.trends_hashtags or "無",
@@ -197,7 +197,7 @@ def curator(state: CreativeState) -> Command:
     return Command(goto="supervisor", update={"topics": topics})
 
 def copywriter(state: CreativeState) -> Command:
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.9)
+    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0.9)
     prompt = COPYWRITER_PROMPT.format(
         topics=json.dumps(state.topics, ensure_ascii=False),
         product_info=state.product_info,
@@ -209,7 +209,7 @@ def copywriter(state: CreativeState) -> Command:
     return Command(goto="supervisor", update={"drafts": drafts})
 
 def critic(state: CreativeState) -> Command:
-    llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3)
+    llm = ChatGoogleGenerativeAI(model="gemini-3-flash-preview", temperature=0.3)
     prompt = CRITIC_PROMPT.format(drafts=json.dumps(state.drafts, ensure_ascii=False))
     response = llm.invoke(prompt)
     reviewed = _parse_json_response(_normalize_content(response.content))
