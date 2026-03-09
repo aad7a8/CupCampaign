@@ -539,7 +539,7 @@ def register_routes(app):
                 {
                     "id": str(h.id),
                     "platform": h.platform,
-                    "text": h.generated_text,
+                    "text": h.final_text,
                     "product_name": h.product_name,
                     "created_at": h.created_at.strftime('%Y-%m-%d %H:%M:%S')
                 } for h in history

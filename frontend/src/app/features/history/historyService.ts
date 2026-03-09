@@ -1,86 +1,60 @@
-import { HistoryRecord, HistoryQueryParams, HistoryMetrics, HistoryFilters } from './types';
-import { MOCK_HISTORY_RECORDS } from './mockData';
+import { HistoryRecord, HistoryQueryParams, HistoryMetrics } from './types';
 
-// 模擬 API 延遲
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const API_BASE_URL = '/api/content/history';
 
-// 過濾記錄
-const filterRecords = (records: HistoryRecord[], filters: HistoryFilters): HistoryRecord[] => {
-  let filtered = [...records];
-
-  // 日期過濾
-  const now = new Date();
-  const startDate = (() => {
-    switch (filters.dateRange) {
-      case 'today':
-        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      case '7days':
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      case '30days':
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      case 'custom':
-        if (filters.customStartDate) {
-          return new Date(filters.customStartDate);
-        }
-        return null;
-      default:
-        return null;
-    }
-  })();
-
-  const endDate = filters.dateRange === 'custom' && filters.customEndDate
-    ? new Date(filters.customEndDate)
-    : now;
-
-  if (startDate) {
-    filtered = filtered.filter(record => {
-      const recordDate = new Date(record.publishTime);
-      return recordDate >= startDate && recordDate <= endDate;
-    });
-  }
-
-  // 平台過濾
-  if (filters.platform !== 'ALL') {
-    filtered = filtered.filter(record => record.platform === filters.platform);
-  }
-
-  // 關鍵字過濾
-  if (filters.keyword && filters.keyword.trim()) {
-    const keyword = filters.keyword.toLowerCase().trim();
-    filtered = filtered.filter(record =>
-      record.copyContent.toLowerCase().includes(keyword) ||
-      record.campaign.toLowerCase().includes(keyword) ||
-      (record.product && record.product.toLowerCase().includes(keyword))
-    );
-  }
-
-  return filtered;
-};
-
-// 查詢歷史記錄
+/**
+ * 查詢歷史記錄
+ * 這裡將 API 回傳的資料結構轉換為前端組件需要的格式
+ */
 export const fetchHistoryRecords = async (
   params: HistoryQueryParams
 ): Promise<{ records: HistoryRecord[]; total: number }> => {
-  await delay(500); // 模擬 API 延遲
-
-  let filtered = filterRecords(MOCK_HISTORY_RECORDS, params);
-
-  // 排序
-  const sortBy = params.sortBy || 'publishTime';
-  const sortOrder = params.sortOrder || 'desc';
-  filtered.sort((a, b) => {
-    const aValue = a[sortBy as keyof HistoryRecord];
-    const bValue = b[sortBy as keyof HistoryRecord];
-    const comparison = aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
-    return sortOrder === 'desc' ? -comparison : comparison;
+  // 注意：目前的 Flask API 尚未實作後端分頁與過濾參數，
+  // 若後續需要，需在 Flask get_history 內加入 request.args.get('platform') 等邏輯
+  const response = await fetch(API_BASE_URL, {
+    method: 'GET',
+    // 瀏覽器會自動帶上 request.cookies 中的 access_token
   });
 
-  // 分頁
+  if (!response.ok) {
+    throw new Error('無法取得歷史紀錄');
+  }
+
+  const result = await response.json();
+
+  if (result.status !== 'success') {
+    throw new Error(result.message || '讀取資料失敗');
+  }
+
+  // 欄位轉換：將後端欄位對應到前端定義的 HistoryRecord 介面
+  const mappedRecords: HistoryRecord[] = result.data.map((item: any) => ({
+    id: item.id,
+    platform: item.platform,
+    copyContent: item.text,          // 對應後端的 'text'
+    product: item.product_name,      // 對應後端的 'product_name'
+    publishTime: item.created_at,    // 對應後端的 'created_at'
+    campaign: '一般發布',             // 後端暫無此欄位，給予預設值
+    engagementTotal: 0,              // 後端暫無成效數據，給予預設值
+  }));
+
+  // 前端過濾邏輯 (因為目前 Flask API 是回傳 .all()，建議在此做簡單過濾)
+  let filtered = [...mappedRecords];
+  if (params.platform && params.platform !== 'ALL') {
+    filtered = filtered.filter(r => r.platform === params.platform);
+  }
+  if (params.keyword) {
+    const k = params.keyword.toLowerCase();
+    filtered = filtered.filter(r => 
+      r.copyContent.toLowerCase().includes(k) || 
+      (r.product && r.product.toLowerCase().includes(k))
+    );
+  }
+
+  // 前端分頁處理
   const page = params.page || 1;
   const pageSize = params.pageSize || 10;
   const start = (page - 1) * pageSize;
-  const end = start + pageSize;
-  const paginated = filtered.slice(start, end);
+  const paginated = filtered.slice(start, start + pageSize);
 
   return {
     records: paginated,
@@ -88,51 +62,36 @@ export const fetchHistoryRecords = async (
   };
 };
 
-// 計算成效指標
-export const calculateMetrics = async (
-  filters: HistoryQueryParams
-): Promise<HistoryMetrics> => {
-  await delay(300);
-
-  const filtered = filterRecords(MOCK_HISTORY_RECORDS, filters);
-  const posts = filtered.length;
-  const totalEngagement = filtered.reduce((sum, record) => 
-    sum + (record.engagementTotal || 0), 0
-  );
-  const avgEngagement = posts > 0 ? Math.round(totalEngagement / posts) : 0;
-
+/**
+ * 計算成效指標
+ * (目前後端資料庫 MarketingContent 暫無 engagement 相關欄位，先回傳 0)
+ */
+export const calculateMetrics = async (params: HistoryQueryParams): Promise<HistoryMetrics> => {
+  const { records, total } = await fetchHistoryRecords(params);
   return {
-    posts,
-    totalEngagement,
-    avgEngagement,
+    posts: total,
+    totalEngagement: 0,
+    avgEngagement: 0,
   };
 };
 
-// 獲取 Top 5 表現
-export const fetchTop5Records = async (
-  filters: HistoryQueryParams
-): Promise<HistoryRecord[]> => {
-  await delay(300);
-
-  let filtered = filterRecords(MOCK_HISTORY_RECORDS, filters);
-  
-  // 只取有互動數的記錄，按互動數降序排序
-  filtered = filtered
-    .filter(record => record.engagementTotal !== undefined && record.engagementTotal > 0)
-    .sort((a, b) => (b.engagementTotal || 0) - (a.engagementTotal || 0))
-    .slice(0, 5);
-
-  return filtered;
+/**
+ * 獲取 Top 5 表現
+ * (同上，因暫無成效欄位，先回傳前五筆)
+ */
+export const fetchTop5Records = async (params: HistoryQueryParams): Promise<HistoryRecord[]> => {
+  const { records } = await fetchHistoryRecords({ ...params, pageSize: 5 });
+  return records;
 };
 
-// 獲取最後同步時間（模擬）
+/**
+ * 獲取最後同步時間
+ * (這部分可維持讀取 localStorage 或讓 Flask 增加一個 API)
+ */
 export const getLastSyncTime = async (): Promise<string | null> => {
-  await delay(200);
-  const stored = localStorage.getItem('history_last_sync');
-  return stored || null;
+  return localStorage.getItem('history_last_sync');
 };
 
-// 設置最後同步時間
 export const setLastSyncTime = (): void => {
   localStorage.setItem('history_last_sync', new Date().toISOString());
 };
