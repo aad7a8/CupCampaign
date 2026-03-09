@@ -8,12 +8,12 @@ from minio import Minio
 from app import db 
 
 # --- 環境變數讀取 ---
-# IG_ID = os.getenv("IG_ID")
+IG_ID = os.getenv("IG_ID")
 
-# IG_ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN")
+IG_ACCESS_TOKEN = os.getenv("IG_ACCESS_TOKEN")
 
 FB_PAGE_ID = os.getenv("FB_PAGE_ID")
-# FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
+FB_ACCESS_TOKEN = os.getenv("FB_ACCESS_TOKEN")
 
 GRAPH_URL = os.getenv("IG_GRAPH_URL", "https://graph.facebook.com/v25.0")
 
