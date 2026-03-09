@@ -140,7 +140,7 @@ def run_workflow(app, product_name, caption, image_binary_data, store_id, platfo
 
             new_image = ContentImage(
                 content_id=new_content.id,
-                minio_url=internal_url,
+                minio_url=external_url,
             )
             db.session.add(new_image)
             db.session.commit()
