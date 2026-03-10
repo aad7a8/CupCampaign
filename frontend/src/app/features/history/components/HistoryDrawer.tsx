@@ -56,6 +56,19 @@ export function HistoryDrawer({ record, open, onClose, onCopy }: HistoryDrawerPr
         </DrawerHeader>
 
         <div className="px-4 pb-4 space-y-6 overflow-y-auto">
+
+          {/* --- 新增：發布圖片顯示區塊 --- */}
+          {record.imageUrl && (
+            <div className="flex justify-center bg-slate-50 border border-slate-100 rounded-xl p-2 relative overflow-hidden">
+              <img
+                src={record.imageUrl}
+                alt={record.product || '發布圖片'}
+                className="max-h-[320px] w-auto object-contain rounded-lg shadow-sm"
+              />
+            </div>
+          )}
+          {/* --------------------------- */}
+
           {/* 文案完整內容 */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">

@@ -21,12 +21,14 @@ interface MenuDrawerFormProps {
   onOpenChange: (open: boolean) => void;
   item: MenuItem | null;
   onSave: (item: Omit<MenuItem, 'id' | 'updatedAt'> & { id?: string }) => void;
+  // 👇 新增 categories 屬性
+  categories: string[];
 }
 
-export function MenuDrawerForm({ open, onOpenChange, item, onSave }: MenuDrawerFormProps) {
+export function MenuDrawerForm({ open, onOpenChange, item, onSave, categories }: MenuDrawerFormProps) {
   const [formData, setFormData] = React.useState({
     name: '',
-    category: 'classic_tea',
+    category: '',
     customCategory: '',
     price: '',
     status: 'active' as 'active' | 'inactive',
@@ -36,54 +38,55 @@ export function MenuDrawerForm({ open, onOpenChange, item, onSave }: MenuDrawerF
 
   useEffect(() => {
     if (item) {
-      // 判斷既有資料是否為自訂分類（category 為 'other' 或有 customCategory）
-      const isOtherCategory = item.category === 'other' || !!item.customCategory;
+      // 編輯模式：直接使用既有的分類名稱
       setFormData({
         name: item.name,
-        category: isOtherCategory ? 'other' : item.category,
-        customCategory: item.customCategory || '',
+        category: item.category,
+        customCategory: '',
         price: item.price.toString(),
         status: item.status,
       });
     } else {
+      // 新增模式：預設選擇動態分類的第一項（如果有的話）
       setFormData({
         name: '',
-        category: 'classic_tea',
+        category: categories.length > 0 ? categories[0] : '',
         customCategory: '',
         price: '',
         status: 'active',
       });
     }
-  }, [item, open]);
+  }, [item, open, categories]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name.trim()) {
       return;
     }
-    
+
     const price = parseFloat(formData.price);
     if (isNaN(price) || price < 0) {
       return;
     }
 
-    // 驗證：如果分類為「其他」，則自訂分類必填
+    // 驗證：如果分類選擇「其他」，則自訂分類必填
     if (formData.category === 'other' && !formData.customCategory.trim()) {
       return;
     }
 
+    // 👇 儲存時，如果選擇「其他」，直接把自訂分類作為真正的 category 存入資料庫
+    const finalCategory = formData.category === 'other' ? formData.customCategory.trim() : formData.category;
+
     const saveData: Omit<MenuItem, 'id' | 'updatedAt'> & { id?: string } = {
       ...(isEditing && { id: item.id }),
       name: formData.name.trim(),
-      category: formData.category,
-      ...(formData.category === 'other' && { customCategory: formData.customCategory.trim() }),
+      category: finalCategory,
       price,
       status: formData.status,
     };
 
     onSave(saveData);
-
     onOpenChange(false);
   };
 
@@ -129,7 +132,6 @@ export function MenuDrawerForm({ open, onOpenChange, item, onSave }: MenuDrawerF
               <Select
                 value={formData.category}
                 onValueChange={(value) => {
-                  // 當切換到非「其他」時，清空自訂分類
                   setFormData({
                     ...formData,
                     category: value,
@@ -138,14 +140,17 @@ export function MenuDrawerForm({ open, onOpenChange, item, onSave }: MenuDrawerF
                 }}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="選擇分類" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="classic_tea">經典原萃（純茶系列）</SelectItem>
-                  <SelectItem value="milk_tea">醇厚奶香（奶茶 / 拿鐵）</SelectItem>
-                  <SelectItem value="fruit_tea">鮮調果茶（水果系列）</SelectItem>
-                  <SelectItem value="special">特色特調（隱藏版 / 冰沙）</SelectItem>
-                  <SelectItem value="other">其他</SelectItem>
+                  {/* 👇 動態渲染分類選項 */}
+                  {categories.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                  {/* 保留「其他」選項讓使用者能自由新增分類 */}
+                  <SelectItem value="other">其他 (新增自訂分類)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -71,6 +71,11 @@ export function LoginPage({ onLogin, onRegister }: LoginPageProps) {
       const data = await response.json();
 
       if (response.ok && data.status === "success") {
+        // 新增這段：把後端傳來的門市名稱存到 localStorage
+        if (data.store_name) {
+          localStorage.setItem('userStoreName', data.store_name);
+        }
+
         // 登入成功
         onLogin(username);
         // 如果後端有回傳 redirect 路徑，也可以在此處理導向

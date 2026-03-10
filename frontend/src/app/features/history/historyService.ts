@@ -30,11 +30,12 @@ export const fetchHistoryRecords = async (
   const mappedRecords: HistoryRecord[] = result.data.map((item: any) => ({
     id: item.id,
     platform: item.platform,
-    copyContent: item.text,          // 對應後端的 'text'
+    copyContent: item.final_text || item.text || '無內容', // 對應後端的 'text'
     product: item.product_name,      // 對應後端的 'product_name'
     publishTime: item.created_at,    // 對應後端的 'created_at'
     campaign: '一般發布',             // 後端暫無此欄位，給予預設值
-    engagementTotal: 0,              // 後端暫無成效數據，給予預設值
+    engagementTotal: item.like || 0, // 後端暫無成效數據，給予預設值
+    imageUrl: item.image_url || '',
   }));
 
   // 前端過濾邏輯 (因為目前 Flask API 是回傳 .all()，建議在此做簡單過濾)
@@ -44,8 +45,8 @@ export const fetchHistoryRecords = async (
   }
   if (params.keyword) {
     const k = params.keyword.toLowerCase();
-    filtered = filtered.filter(r => 
-      r.copyContent.toLowerCase().includes(k) || 
+    filtered = filtered.filter(r =>
+      r.copyContent.toLowerCase().includes(k) ||
       (r.product && r.product.toLowerCase().includes(k))
     );
   }
