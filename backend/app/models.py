@@ -7,7 +7,7 @@ from sqlalchemy import event, text
 class Tenant(db.Model):
     __tablename__ = 'tenant'
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(100), nullable=False, unique=True) 
     is_registered = db.Column(db.Boolean, default=False)
     
     stores = db.relationship('Store', backref='tenant', lazy=True)
@@ -53,10 +53,8 @@ class Product(db.Model):
 class Ingredient(db.Model):
     __tablename__ = 'ingredient'
     id = db.Column(db.Integer, primary_key=True)
-    # ⚠️ tenant_id 已經移除
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(100), nullable=False, unique=True) 
     
-    # 儲存 1~12 月採購狀態的 JSONB 欄位
     monthly_status_matrix = db.Column(db.JSON, server_default='[]')
 
 # 6. 行銷文案表 (MarketingContent)
