@@ -16,6 +16,7 @@ export interface HistoryRecord {
   engagementShares?: number;
   platformUrl?: string;
   lastUpdated?: string; // ISO date string
+  imageUrl?: string;
 }
 
 export interface HistoryMetrics {

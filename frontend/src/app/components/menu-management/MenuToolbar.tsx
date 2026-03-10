@@ -13,6 +13,8 @@ interface MenuToolbarProps {
   onStatusFilterChange: (value: 'all' | 'active' | 'inactive') => void;
   sortBy: string;
   onSortChange: (value: string) => void;
+  // 👇 新增 categories 屬性
+  categories: string[];
 }
 
 export function MenuToolbar({
@@ -24,6 +26,7 @@ export function MenuToolbar({
   onStatusFilterChange,
   sortBy,
   onSortChange,
+  categories, // 👇 接收屬性
 }: MenuToolbarProps) {
   return (
     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -47,11 +50,12 @@ export function MenuToolbar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部分類</SelectItem>
-            <SelectItem value="classic_tea">經典原萃（純茶系列）</SelectItem>
-            <SelectItem value="milk_tea">醇厚奶香（奶茶 / 拿鐵）</SelectItem>
-            <SelectItem value="fruit_tea">鮮調果茶（水果系列）</SelectItem>
-            <SelectItem value="special">特色特調（隱藏版 / 冰沙）</SelectItem>
-            <SelectItem value="other">其他</SelectItem>
+            {/* 👇 動態渲染分類選項 */}
+            {categories.map((cat) => (
+              <SelectItem key={cat} value={cat}>
+                {cat}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

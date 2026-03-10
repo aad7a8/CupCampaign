@@ -44,7 +44,7 @@ export function MenuManagementPage() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [sortBy, setSortBy] = useState('updated');
 
-// 從後端 API 載入資料
+  // 從後端 API 載入資料
   useEffect(() => {
     const fetchMenuItems = async () => {
       try {
@@ -53,22 +53,22 @@ export function MenuManagementPage() {
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include', // 確保夾帶 Cookie (JWT token)
         });
-        
+
         const resJson = await response.json();
-        
+
         if (resJson.status === 'success' && resJson.data) {
           // 將後端資料結構對應到前端 MenuItem 介面
-          const items = resJson.data.map((item) => ({
+          const items = resJson.data.map((item: any) => ({
             id: String(item.id),
             name: item.name,
             category: item.category,
             price: item.price,
             // 資料庫目前沒有 status 欄位，預設爬蟲抓下來的都為 'active' (上架)
-            status: 'active', 
+            status: 'active',
             // 確保跨瀏覽器能正確解析時間字串 (將 YYYY-MM-DD HH:MM:SS 轉為 YYYY-MM-DDTHH:MM:SS)
             updatedAt: item.scraped_at ? new Date(item.scraped_at.replace(' ', 'T')) : new Date(),
           }));
-          
+
           setMenuItems(items);
         } else {
           toast.error(resJson.message || '無法取得菜單資料');
@@ -83,6 +83,12 @@ export function MenuManagementPage() {
 
     fetchMenuItems();
   }, []);
+
+  // 👇 新增這段：動態取得所有不重複的菜單分類
+  const uniqueCategories = useMemo(() => {
+    const categories = new Set(menuItems.map((item) => item.category).filter(Boolean));
+    return Array.from(categories);
+  }, [menuItems]);
 
   // 過濾與排序後的資料
   const filteredAndSortedItems = useMemo(() => {
@@ -193,10 +199,10 @@ export function MenuManagementPage() {
       prev.map((item) =>
         item.id === id
           ? {
-              ...item,
-              status: item.status === 'active' ? 'inactive' : 'active',
-              updatedAt: new Date(),
-            }
+            ...item,
+            status: item.status === 'active' ? 'inactive' : 'active',
+            updatedAt: new Date(),
+          }
           : item
       )
     );
@@ -253,17 +259,13 @@ export function MenuManagementPage() {
     const results = await Promise.allSettled(
       items.map(async (item, index) => {
         try {
-          // 模擬 API 呼叫（實際應該呼叫後端）
-          // 這裡直接更新 localStorage，因為專案目前使用 localStorage
           const newItem: MenuItem = {
             ...item,
             id: Date.now().toString() + index.toString() + Math.random().toString(36).substr(2, 9),
             updatedAt: new Date(),
           };
 
-          // 模擬可能的失敗情況（例如名稱重複）
           if (Math.random() < 0.05) {
-            // 5% 機率失敗（模擬）
             throw new Error(`飲品 "${item.name}" 匯入失敗`);
           }
 
@@ -301,17 +303,10 @@ export function MenuManagementPage() {
     try {
       setIsImporting(true);
 
-      // 讀取檔案為 ArrayBuffer
       const buffer = await file.arrayBuffer();
-
-      // 解析 Excel
       const wb = XLSX.read(buffer, { type: 'array' });
-
-      // 讀取第一個工作表
       const firstSheetName = wb.SheetNames[0];
       const ws = wb.Sheets[firstSheetName];
-
-      // 轉換為 JSON
       const rows = XLSX.utils.sheet_to_json(ws, { defval: '' }) as any[];
 
       if (rows.length === 0) {
@@ -319,7 +314,6 @@ export function MenuManagementPage() {
         return;
       }
 
-      // 欄位 mapping（支援中英欄位）
       const fieldMapping: Record<string, string> = {
         飲品: 'name',
         name: 'name',
@@ -331,7 +325,6 @@ export function MenuManagementPage() {
         status: 'status',
       };
 
-      // 取得第一列作為欄位名稱
       const headers = Object.keys(rows[0]);
       const headerMap: Record<string, string> = {};
       headers.forEach((header) => {
@@ -341,7 +334,6 @@ export function MenuManagementPage() {
         }
       });
 
-      // 驗證必填欄位是否存在
       const requiredFields = ['name', 'category', 'price'];
       const missingFields = requiredFields.filter(
         (field) => !headerMap[field]
@@ -360,32 +352,22 @@ export function MenuManagementPage() {
         return;
       }
 
-      // 驗證和轉換資料
       const validationErrors: ValidationError[] = [];
       const validItems: ImportItem[] = [];
 
       rows.forEach((row, index) => {
-        const rowNumber = index + 2; // Excel 行號（第一列是標題）
+        const rowNumber = index + 2;
         const errors: string[] = [];
 
-        // 取得欄位值
         const nameValue = row[headerMap.name]?.toString().trim() || '';
         const categoryValue = row[headerMap.category]?.toString().trim() || '';
         const priceValue = row[headerMap.price]?.toString().trim() || '';
         const statusValue = row[headerMap.status]?.toString().trim() || '';
 
-        // 驗證必填欄位
-        if (!nameValue) {
-          errors.push('飲品名稱');
-        }
-        if (!categoryValue) {
-          errors.push('分類');
-        }
-        if (!priceValue) {
-          errors.push('售價');
-        }
+        if (!nameValue) errors.push('飲品名稱');
+        if (!categoryValue) errors.push('分類');
+        if (!priceValue) errors.push('售價');
 
-        // 驗證價格
         let price = 0;
         if (priceValue) {
           const parsedPrice = parseFloat(priceValue);
@@ -396,7 +378,6 @@ export function MenuManagementPage() {
           }
         }
 
-        // 如果有錯誤，記錄
         if (errors.length > 0) {
           validationErrors.push({
             row: rowNumber,
@@ -406,7 +387,6 @@ export function MenuManagementPage() {
           return;
         }
 
-        // 處理狀態欄位
         let status: 'active' | 'inactive' = 'active';
         if (statusValue) {
           const normalizedStatus = statusValue.toLowerCase().trim();
@@ -425,7 +405,6 @@ export function MenuManagementPage() {
           }
         }
 
-        // 加入有效項目
         validItems.push({
           name: nameValue,
           category: categoryValue,
@@ -434,7 +413,6 @@ export function MenuManagementPage() {
         });
       });
 
-      // 如果有驗證錯誤，顯示錯誤摘要
       if (validationErrors.length > 0) {
         const errorCount = validationErrors.length;
         const displayErrors = validationErrors.slice(0, 10);
@@ -458,30 +436,24 @@ export function MenuManagementPage() {
         return;
       }
 
-      // 呼叫批次匯入 API
       const result = await bulkImportMenuItems(validItems);
 
-      // 顯示結果
       if (result.failed === 0) {
         toast.success(`匯入完成：成功 ${result.success} 筆`);
       } else {
         const errorDetails =
           result.errors.length > 0
-            ? `\n\n錯誤詳情：\n${result.errors.slice(0, 5).join('\n')}${
-                result.errors.length > 5
-                  ? `\n...還有 ${result.errors.length - 5} 筆錯誤`
-                  : ''
-              }`
+            ? `\n\n錯誤詳情：\n${result.errors.slice(0, 5).join('\n')}${result.errors.length > 5
+              ? `\n...還有 ${result.errors.length - 5} 筆錯誤`
+              : ''
+            }`
             : '';
         toast.warning(
           `匯入完成：成功 ${result.success} 筆、失敗 ${result.failed} 筆${errorDetails}`,
-          {
-            duration: 8000,
-          }
+          { duration: 8000 }
         );
       }
 
-      // 清空檔案輸入
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -497,12 +469,10 @@ export function MenuManagementPage() {
     }
   };
 
-  // 處理檔案選擇
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 驗證副檔名
     const fileName = file.name.toLowerCase();
     const validExtensions = ['.xlsx', '.xls'];
     const fileExtension = fileName.substring(fileName.lastIndexOf('.'));
@@ -515,7 +485,6 @@ export function MenuManagementPage() {
       return;
     }
 
-    // 解析並匯入
     await parseExcelAndImport(file);
   };
 
@@ -588,6 +557,8 @@ export function MenuManagementPage() {
           onStatusFilterChange={setStatusFilter}
           sortBy={sortBy}
           onSortChange={setSortBy}
+          // 👇 傳遞動態分類給 Toolbar
+          categories={uniqueCategories}
         />
       )}
 
@@ -640,6 +611,8 @@ export function MenuManagementPage() {
         onOpenChange={setDrawerOpen}
         item={editingItem}
         onSave={handleSave}
+        // 👇 也可以傳遞給 DrawerForm，讓新增編輯時也能選到最新的分類
+        categories={uniqueCategories}
       />
     </div>
   );

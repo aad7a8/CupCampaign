@@ -107,6 +107,7 @@ def register_routes(app):
         
         user = Users.query.filter_by(email=email).first()
         if user and user.check_password(password):
+            store_display_name = f"{user.store.tenant.name} - {user.store.name}" if user.store else "未綁定門市"
             payload = {
                 "user": str(user.id),
                 "store": str(user.store_id),
@@ -117,7 +118,8 @@ def register_routes(app):
             resp = make_response(jsonify({
                 "status": "success",
                 "message": "登入成功",
-                "redirect": "/dashboard"
+                "redirect": "/dashboard",
+                "store_name": store_display_name 
             }))
             resp.set_cookie(
                 'access_token',
@@ -528,22 +530,37 @@ def register_routes(app):
 
         store = Store.query.get(current_store_id)
         store_display_name = f"{store.tenant.name} - {store.name}" if store else "未知門市"
+        
+        # 1. 先撈出該門市所有的行銷內容
         history = MarketingContent.query.filter_by(store_id=current_store_id)\
                                         .order_by(MarketingContent.created_at.desc())\
                                         .all()
+        
+        data_list = []
+        for h in history:
+            # 2. 針對每一筆內容，去 ContentImage 表找對應的圖片
+            # 假設一篇貼文對應一張圖，我們用 .first() 取第一張
+            img_record = ContentImage.query.filter_by(content_id=h.id).first()
+            
+            # 如果有找到圖片紀錄，就取 minio_url，否則給 None
+            img_url = img_record.minio_url if img_record else None
+
+            data_list.append({
+                "id": str(h.id),
+                "platform": getattr(h, 'platform', 'Unknown'),
+                "text": getattr(h, 'final_text', ''),
+                "final_text": getattr(h, 'final_text', ''),
+                "product_name": getattr(h, 'product_name', '未命名產品'),
+                "created_at": h.created_at.strftime('%Y-%m-%d %H:%M:%S') if getattr(h, 'created_at', None) else '1970-01-01 00:00:00',
+                "like": getattr(h, 'like', 0),
+                "image_url": img_url  # 3. 把剛剛找到的網址塞進回傳的 JSON 裡
+            })
+
         return jsonify({
             "status": "success",
             "store_info": store_display_name,
             "count": len(history),
-            "data": [
-                {
-                    "id": str(h.id),
-                    "platform": h.platform,
-                    "text": h.final_text,
-                    "product_name": h.product_name,
-                    "created_at": h.created_at.strftime('%Y-%m-%d %H:%M:%S')
-                } for h in history
-            ]
+            "data": data_list
         })
 
     # ==========================================
