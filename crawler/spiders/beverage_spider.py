@@ -216,7 +216,7 @@ def run_beverage_pipeline():
         {"brand": "得正" , "url": "https://order.nidin.shop/menu/20217", "exclude_keywords":["袋"]},
         {"brand": "先喝道", "url": "https://order.nidin.shop/menu/14614", "exclude_keywords":["袋","吸管"]},
         {"brand": "清心福全", "url": "https://order.nidin.shop/menu/26542", "exclude_keywords":["袋"]},
-        {"brand": "迷克夏", "url": "https://order.nidin.shop/menu/15151", "exclude_keywords":["袋"]},
+        {"brand": "迷客夏", "url": "https://order.nidin.shop/menu/15151", "exclude_keywords":["袋"]},
         {"brand": "comebuy", "url": "https://order.nidin.shop/menu/11509", "exclude_keywords":["袋"]},
         {"brand": "龜記", "url": "https://order.nidin.shop/menu/27601", "exclude_keywords":["袋"]}
     ]

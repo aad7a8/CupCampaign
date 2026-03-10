@@ -52,14 +52,8 @@ async def run_fruit_pipeline():
     """Run fruit price scrape and update."""
     logger.info("=== Starting fruit pipeline ===")
     try:
-        # 預設抓取過去 3 天的資料，確保休市或假日後能補齊資料
-        start_date = (datetime.now() - timedelta(days=3)).date()
-        start_str = f"{start_date.year - 1911}.{start_date.month:02d}.{start_date.day:02d}"
-        
-        logger.info(f"Targeting fruit data from {start_str} to today.")
-        
-        # 使用 to_thread 避免同步的 requests 與 DB 操作阻塞事件迴圈
-        await asyncio.to_thread(run_fruit_crawler, start_str)
+        logger.info("Targeting fruit data for the past 7 days.")
+        await asyncio.to_thread(run_fruit_crawler)
         
         logger.info("Fruit pipeline complete")
     except Exception:
