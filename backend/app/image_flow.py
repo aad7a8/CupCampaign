@@ -112,27 +112,31 @@ class TeaMasterNanoBananaFlow(Flow):
 
         engineer = Agent(
             role="Product-First Image Prompt Engineer",
-            goal="生成能 100% 保留原始產品並僅替換背景的高品質 Prompt",
-            backstory="你是專業的 AI 提示詞專家，精通 Nano Banana 2 的權重指令。",
+            goal="生成能 100% 保留原始產品並僅替換背景的高品質 Prompt，嚴格禁止在產品上新增任何LOGO或文字。",
+            backstory="你是專業的 AI 提示詞專家，精通 Nano Banana 2 的權重指令，擅長精確保留主體並替換場景。",
             llm=gemini_llm
         )
 
         task = Task(
             description=dedent(f"""
                 請為產品「{ctx.product_name}」撰寫繪圖指令。
-                核心任務：維持上傳圖片中的杯子結構，僅更換背景。
+                核心任務：將上傳圖片中的杯子（image_1.png）作為「絕對主體」完整搬移到新背景中。
+
+                【主體保護指令 (權重 1.9)】:
+                - **(Maintain the exact visual identity of the cup from image_1.png including its physical label and current appearance without any alterations:1.9)**
+                - **(Zero-Tolerance for New Text:1.9)**: Do not attempt to render, re-type, or add any new letters, logos, or typography. The label should be treated as a flat graphic texture from the source, not as text to be generated.
+                - (Keep the beverage layering and ice cubes exactly as they appear in the original photo).
+
+                【新場景合成 (權重 1.0)】:
+                - 背景設定：根據「{self.state.get('visual_references')}」與文案氛圍「{ctx.copywriting}」設計。
+                - 燈光：確保新場景的燈光角度與杯子原始的受光面自然融合。
                 
-                【杯體保護 (1.9 權重)】:
-                - (Original product cup structure and branding:1.9)
-                - (Maintain existing bottle shape and labels:1.9)
-                
-                【場景合成】:
-                - 背景參考: {self.state.get('visual_references')}
-                - 情境對應文案: {ctx.copywriting}
+                **產出格式：**
+                (Strictly preserve the cup and its original label from image_1.png:1.9) AND (Detailed scene description:1.0)
             """),
             agent=engineer,
             output_pydantic=NanoBananaPrompt,
-            expected_output="Nano Banana 2 指令"
+            expected_output="Nano Banana 2 指令，強調主體為不可變圖像，禁止任何文字生成運算"
         )
 
         result = Crew(agents=[engineer], tasks=[task]).kickoff()

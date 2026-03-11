@@ -13,6 +13,10 @@ export const fetchHistoryRecords = async (
   // 若後續需要，需在 Flask get_history 內加入 request.args.get('platform') 等邏輯
   const response = await fetch(API_BASE_URL, {
     method: 'GET',
+    headers: {
+      // 加入這個 header，避免開發階段 ngrok 阻擋 API 請求顯示警告頁面
+      'ngrok-skip-browser-warning': 'true',
+    },
     // 瀏覽器會自動帶上 request.cookies 中的 access_token
   });
 
@@ -35,7 +39,8 @@ export const fetchHistoryRecords = async (
     publishTime: item.created_at,    // 對應後端的 'created_at'
     campaign: '一般發布',             // 後端暫無此欄位，給予預設值
     engagementTotal: item.like || 0, // 後端暫無成效數據，給予預設值
-    imageUrl: item.image_url || '',
+    // 👇 關鍵修改：優先讀取 minio_url，若無則降級讀取 image_url
+    imageUrl: item.minio_url || item.image_url || '',
   }));
 
   // 前端過濾邏輯 (因為目前 Flask API 是回傳 .all()，建議在此做簡單過濾)
