@@ -230,6 +230,55 @@ def register_routes(app):
                 return jsonify({"status": "error", "message": f"儲存失敗: {str(e)}"}), 500
 
     # ==========================================
+    # Single Product API (更新、刪除單一飲品)
+    # ==========================================
+    @app.route('/api/admin/products/<int:product_id>', methods=['PUT', 'DELETE'])
+    def handle_single_product(product_id):
+        token = request.cookies.get('access_token')
+        if not token:
+            return jsonify({"status": "error", "message": "請先登入"}), 401
+        
+        try:
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            current_store_id = decoded.get("store")
+        except Exception:
+            return jsonify({"status": "error", "message": "認證失效"}), 401
+
+        store = Store.query.get(current_store_id)
+        if not store:
+            return jsonify({"status": "error", "message": "找不到所屬門市資料"}), 404
+        
+        target_tenant_id = store.tenant_id
+        
+        # 確保該飲品存在，且屬於當前使用者的品牌 (tenant)
+        product = Product.query.filter_by(id=product_id, tenant_id=target_tenant_id).first()
+        if not product:
+            return jsonify({"status": "error", "message": "找不到該飲品資料"}), 404
+
+        if request.method == 'PUT':
+            try:
+                data = request.json
+                # 更新欄位資料
+                product.name = data.get('name', product.name)
+                product.category = data.get('category', product.category)
+                product.price = data.get('price', product.price)
+                
+                db.session.commit()
+                return jsonify({"status": "success", "message": "飲品更新成功"})
+            except Exception as e:
+                db.session.rollback()
+                return jsonify({"status": "error", "message": f"更新失敗: {str(e)}"}), 500
+
+        if request.method == 'DELETE':
+            try:
+                db.session.delete(product)
+                db.session.commit()
+                return jsonify({"status": "success", "message": "飲品已刪除"})
+            except Exception as e:
+                db.session.rollback()
+                return jsonify({"status": "error", "message": f"刪除失敗: {str(e)}"}), 500
+
+    # ==========================================
     # Ingredient Matrix API (水果採購矩陣)
     # ==========================================
     @app.route('/api/ingredients/matrix', methods=['GET'])

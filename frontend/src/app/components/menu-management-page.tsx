@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Plus, Upload, Package, Loader2 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Badge } from '@/app/components/ui/badge';
@@ -9,13 +9,10 @@ import { MenuTable } from './menu-management/MenuTable';
 import { MenuDrawerForm } from './menu-management/MenuDrawerForm';
 import { MenuItem } from './menu-management/types';
 
-// 重新導出類型以供其他模組使用
 export type { MenuItem };
 
-// localStorage key
 const STORAGE_KEY = 'cupcampaign_menu_items';
 
-// 匯入項目類型
 type ImportItem = {
   name: string;
   category: string;
@@ -23,7 +20,6 @@ type ImportItem = {
   status: 'active' | 'inactive';
 };
 
-// 驗證錯誤類型
 type ValidationError = {
   row: number;
   field: string;
@@ -38,188 +34,203 @@ export function MenuManagementPage() {
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter & Sort 狀態
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [sortBy, setSortBy] = useState('updated');
 
-  // 從後端 API 載入資料
-  useEffect(() => {
-    const fetchMenuItems = async () => {
-      try {
-        const response = await fetch('/api/admin/products', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include', // 確保夾帶 Cookie (JWT token)
-        });
+  // 1. 將 fetch 邏輯獨立出來，方便 CRUD 操作後重新呼叫
+  const fetchMenuItems = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/products', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      });
 
-        const resJson = await response.json();
+      const resJson = await response.json();
 
-        if (resJson.status === 'success' && resJson.data) {
-          // 將後端資料結構對應到前端 MenuItem 介面
-          const items = resJson.data.map((item: any) => ({
-            id: String(item.id),
-            name: item.name,
-            category: item.category,
-            price: item.price,
-            // 資料庫目前沒有 status 欄位，預設爬蟲抓下來的都為 'active' (上架)
-            status: 'active',
-            // 確保跨瀏覽器能正確解析時間字串 (將 YYYY-MM-DD HH:MM:SS 轉為 YYYY-MM-DDTHH:MM:SS)
-            updatedAt: item.scraped_at ? new Date(item.scraped_at.replace(' ', 'T')) : new Date(),
-          }));
-
-          setMenuItems(items);
-        } else {
-          toast.error(resJson.message || '無法取得菜單資料');
-          setMenuItems([]);
-        }
-      } catch (error) {
-        console.error('Error fetching menu items:', error);
-        toast.error('網路連線錯誤，無法取得菜單');
+      if (resJson.status === 'success' && resJson.data) {
+        const items = resJson.data.map((item: any) => ({
+          id: String(item.id),
+          name: item.name,
+          category: item.category,
+          price: item.price,
+          status: 'active',
+          updatedAt: item.scraped_at ? new Date(item.scraped_at.replace(' ', 'T')) : new Date(),
+        }));
+        setMenuItems(items);
+      } else {
+        toast.error(resJson.message || '無法取得菜單資料');
         setMenuItems([]);
       }
-    };
-
-    fetchMenuItems();
+    } catch (error) {
+      console.error('Error fetching menu items:', error);
+      toast.error('網路連線錯誤，無法取得菜單');
+      setMenuItems([]);
+    }
   }, []);
 
-  // 👇 新增這段：動態取得所有不重複的菜單分類
+  useEffect(() => {
+    fetchMenuItems();
+  }, [fetchMenuItems]);
+
   const uniqueCategories = useMemo(() => {
     const categories = new Set(menuItems.map((item) => item.category).filter(Boolean));
     return Array.from(categories);
   }, [menuItems]);
 
-  // 過濾與排序後的資料
   const filteredAndSortedItems = useMemo(() => {
     let filtered = [...menuItems];
 
-    // 搜尋
     if (searchQuery.trim()) {
       filtered = filtered.filter((item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
-
-    // 分類篩選
     if (categoryFilter !== 'all') {
       filtered = filtered.filter((item) => item.category === categoryFilter);
     }
-
-    // 狀態篩選
     if (statusFilter !== 'all') {
       filtered = filtered.filter((item) => item.status === statusFilter);
     }
 
-    // 排序
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case 'updated':
-          return b.updatedAt.getTime() - a.updatedAt.getTime();
-        case 'price-desc':
-          return b.price - a.price;
-        case 'price-asc':
-          return a.price - b.price;
-        case 'name-asc':
-          return a.name.localeCompare(b.name, 'zh-TW');
-        case 'name-desc':
-          return b.name.localeCompare(a.name, 'zh-TW');
-        default:
-          return 0;
+        case 'updated': return b.updatedAt.getTime() - a.updatedAt.getTime();
+        case 'price-desc': return b.price - a.price;
+        case 'price-asc': return a.price - b.price;
+        case 'name-asc': return a.name.localeCompare(b.name, 'zh-TW');
+        case 'name-desc': return b.name.localeCompare(a.name, 'zh-TW');
+        default: return 0;
       }
     });
 
     return filtered;
   }, [menuItems, searchQuery, categoryFilter, statusFilter, sortBy]);
 
-  // 統計資料
   const stats = useMemo(() => {
     const active = menuItems.filter((item) => item.status === 'active').length;
     const inactive = menuItems.filter((item) => item.status === 'inactive').length;
-    return {
-      active,
-      inactive,
-      total: menuItems.length,
-    };
+    return { active, inactive, total: menuItems.length };
   }, [menuItems]);
 
-  // 處理新增
   const handleAdd = () => {
     setEditingItem(null);
     setDrawerOpen(true);
   };
 
-  // 處理編輯
   const handleEdit = (item: MenuItem) => {
     setEditingItem(item);
     setDrawerOpen(true);
   };
 
-  // 處理儲存（新增或更新）
-  const handleSave = (data: Omit<MenuItem, 'id' | 'updatedAt'> & { id?: string }) => {
-    if (data.id) {
-      // 更新
-      setMenuItems((prev) =>
-        prev.map((item) =>
-          item.id === data.id
-            ? { ...data, id: data.id, updatedAt: new Date() }
-            : item
-        )
-      );
-      toast.success('已儲存');
-    } else {
-      // 新增
-      const newItem: MenuItem = {
-        ...data,
-        id: Date.now().toString(),
-        updatedAt: new Date(),
-      };
-      setMenuItems((prev) => [...prev, newItem]);
-      toast.success('已儲存');
+  // 2. 串接真實的 新增 (POST) 與 更新 (PUT) API
+  const handleSave = async (data: Omit<MenuItem, 'id' | 'updatedAt'> & { id?: string }) => {
+    try {
+      if (data.id) {
+        // 更新 (PUT)
+        const res = await fetch(`/api/admin/products/${data.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+        const result = await res.json();
+
+        if (result.status === 'success') {
+          toast.success('已更新品項');
+        } else {
+          toast.error(result.message || '更新失敗');
+        }
+      } else {
+        // 新增 (POST) - 注意後端要求的是包含 products 的陣列格式
+        const res = await fetch(`/api/admin/products`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            products: [{ name: data.name, category: data.category, price: data.price }]
+          }),
+        });
+        const result = await res.json();
+
+        if (result.status === 'success') {
+          toast.success('已新增品項');
+        } else {
+          toast.error(result.message || '新增失敗');
+        }
+      }
+
+      // 無論新增或編輯成功，重新抓取最新資料
+      await fetchMenuItems();
+
+    } catch (error) {
+      console.error('Save error:', error);
+      toast.error('系統連線錯誤');
+    } finally {
+      setDrawerOpen(false);
+      setEditingItem(null);
     }
-    setDrawerOpen(false);
-    setEditingItem(null);
   };
 
-  // 處理複製
-  const handleDuplicate = (item: MenuItem) => {
-    const duplicated: MenuItem = {
-      ...item,
-      id: Date.now().toString(),
-      name: `${item.name} (複製)`,
-      updatedAt: new Date(),
-    };
-    setMenuItems((prev) => [...prev, duplicated]);
-    toast.success('已複製');
+  // 3. 串接真實的 複製 (POST) API
+  const handleDuplicate = async (item: MenuItem) => {
+    try {
+      const res = await fetch(`/api/admin/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          products: [{ name: `${item.name} (複製)`, category: item.category, price: item.price }]
+        }),
+      });
+      const result = await res.json();
+
+      if (result.status === 'success') {
+        toast.success('已複製');
+        await fetchMenuItems();
+      } else {
+        toast.error(result.message || '複製失敗');
+      }
+    } catch (e) {
+      toast.error('系統連線錯誤');
+    }
   };
 
-  // 處理切換狀態
   const handleToggleStatus = (id: string) => {
+    // 註：資料庫目前未包含 status 欄位，此處先維持前端本地狀態切換，不打 API。
     setMenuItems((prev) =>
       prev.map((item) =>
         item.id === id
-          ? {
-            ...item,
-            status: item.status === 'active' ? 'inactive' : 'active',
-            updatedAt: new Date(),
-          }
+          ? { ...item, status: item.status === 'active' ? 'inactive' : 'active', updatedAt: new Date() }
           : item
       )
     );
   };
 
-  // 處理刪除
-  const handleDelete = (id: string) => {
-    setMenuItems((prev) => prev.filter((item) => item.id !== id));
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      next.delete(id);
-      return next;
-    });
-    toast.success('已刪除');
+  // 4. 串接真實的 刪除 (DELETE) API
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const result = await res.json();
+
+      if (result.status === 'success') {
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+        toast.success('已刪除');
+        await fetchMenuItems(); // 刪除後重新抓取資料
+      } else {
+        toast.error(result.message || '刪除失敗');
+      }
+    } catch (error) {
+      toast.error('刪除時發生連線錯誤');
+    }
   };
 
-  // 處理選擇
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedIds(new Set(filteredAndSortedItems.map((item) => item.id)));
@@ -240,65 +251,36 @@ export function MenuManagementPage() {
     });
   };
 
-  // 處理匯入按鈕點擊
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
 
-  // 批次匯入 API（模擬後端 API）
+  // 5. 確保批次匯入打真實的 POST API
   const bulkImportMenuItems = async (
     items: ImportItem[]
   ): Promise<{ success: number; failed: number; errors: string[] }> => {
-    // 模擬 API 延遲
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      const res = await fetch(`/api/admin/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // 將匯入的項目對應到後端需要的格式
+          products: items.map(i => ({ name: i.name, category: i.category, price: i.price }))
+        }),
+      });
 
-    const errors: string[] = [];
-    const successfulItems: MenuItem[] = [];
-
-    // 使用 Promise.allSettled 批次處理
-    const results = await Promise.allSettled(
-      items.map(async (item, index) => {
-        try {
-          const newItem: MenuItem = {
-            ...item,
-            id: Date.now().toString() + index.toString() + Math.random().toString(36).substr(2, 9),
-            updatedAt: new Date(),
-          };
-
-          if (Math.random() < 0.05) {
-            throw new Error(`飲品 "${item.name}" 匯入失敗`);
-          }
-
-          return newItem;
-        } catch (error) {
-          const errorMsg =
-            error instanceof Error ? error.message : `匯入 "${item.name}" 時發生錯誤`;
-          errors.push(errorMsg);
-          throw error;
-        }
-      })
-    );
-
-    // 收集成功的項目
-    results.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        successfulItems.push(result.value);
+      const result = await res.json();
+      if (result.status === 'success') {
+        await fetchMenuItems(); // 匯入成功後更新列表
+        return { success: items.length, failed: 0, errors: [] };
+      } else {
+        return { success: 0, failed: items.length, errors: [result.message] };
       }
-    });
-
-    // 一次性更新狀態
-    if (successfulItems.length > 0) {
-      setMenuItems((prev) => [...prev, ...successfulItems]);
+    } catch (e) {
+      return { success: 0, failed: items.length, errors: ['系統連線異常'] };
     }
-
-    return {
-      success: successfulItems.length,
-      failed: errors.length,
-      errors,
-    };
   };
 
-  // 解析 Excel 並匯入
   const parseExcelAndImport = async (file: File) => {
     try {
       setIsImporting(true);
@@ -315,14 +297,7 @@ export function MenuManagementPage() {
       }
 
       const fieldMapping: Record<string, string> = {
-        飲品: 'name',
-        name: 'name',
-        分類: 'category',
-        category: 'category',
-        售價: 'price',
-        price: 'price',
-        狀態: 'status',
-        status: 'status',
+        飲品: 'name', name: 'name', 分類: 'category', category: 'category', 售價: 'price', price: 'price', 狀態: 'status', status: 'status',
       };
 
       const headers = Object.keys(rows[0]);
@@ -335,19 +310,15 @@ export function MenuManagementPage() {
       });
 
       const requiredFields = ['name', 'category', 'price'];
-      const missingFields = requiredFields.filter(
-        (field) => !headerMap[field]
-      );
+      const missingFields = requiredFields.filter((field) => !headerMap[field]);
 
       if (missingFields.length > 0) {
-        const missingFieldNames = missingFields
-          .map((f) => {
-            if (f === 'name') return '飲品/name';
-            if (f === 'category') return '分類/category';
-            if (f === 'price') return '售價/price';
-            return f;
-          })
-          .join('、');
+        const missingFieldNames = missingFields.map((f) => {
+          if (f === 'name') return '飲品/name';
+          if (f === 'category') return '分類/category';
+          if (f === 'price') return '售價/price';
+          return f;
+        }).join('、');
         toast.error(`缺少必填欄位：${missingFieldNames}`);
         return;
       }
@@ -379,55 +350,22 @@ export function MenuManagementPage() {
         }
 
         if (errors.length > 0) {
-          validationErrors.push({
-            row: rowNumber,
-            field: errors.join('、'),
-            message: `第 ${rowNumber} 行：缺少或無效的欄位（${errors.join('、')}）`,
-          });
+          validationErrors.push({ row: rowNumber, field: errors.join('、'), message: `第 ${rowNumber} 行：缺少或無效的欄位（${errors.join('、')}）` });
           return;
         }
 
         let status: 'active' | 'inactive' = 'active';
         if (statusValue) {
           const normalizedStatus = statusValue.toLowerCase().trim();
-          if (
-            normalizedStatus === 'active' ||
-            normalizedStatus === '上架中' ||
-            normalizedStatus === '上架'
-          ) {
-            status = 'active';
-          } else if (
-            normalizedStatus === 'inactive' ||
-            normalizedStatus === '下架' ||
-            normalizedStatus === '已下架'
-          ) {
-            status = 'inactive';
-          }
+          if (normalizedStatus === 'active' || normalizedStatus === '上架中' || normalizedStatus === '上架') status = 'active';
+          else if (normalizedStatus === 'inactive' || normalizedStatus === '下架' || normalizedStatus === '已下架') status = 'inactive';
         }
 
-        validItems.push({
-          name: nameValue,
-          category: categoryValue,
-          price,
-          status,
-        });
+        validItems.push({ name: nameValue, category: categoryValue, price, status });
       });
 
       if (validationErrors.length > 0) {
-        const errorCount = validationErrors.length;
-        const displayErrors = validationErrors.slice(0, 10);
-        const remainingCount = errorCount - 10;
-
-        let errorMessage = `Excel 檔案驗證失敗，共 ${errorCount} 筆錯誤：\n\n`;
-        errorMessage += displayErrors.map((e) => e.message).join('\n');
-        if (remainingCount > 0) {
-          errorMessage += `\n\n...還有 ${remainingCount} 筆錯誤`;
-        }
-        errorMessage += '\n\n請修正 Excel 檔案後再重新匯入。';
-
-        toast.error(errorMessage, {
-          duration: 10000,
-        });
+        toast.error(`Excel 檔案驗證失敗，請修正後再重新匯入。`, { duration: 10000 });
         return;
       }
 
@@ -441,29 +379,13 @@ export function MenuManagementPage() {
       if (result.failed === 0) {
         toast.success(`匯入完成：成功 ${result.success} 筆`);
       } else {
-        const errorDetails =
-          result.errors.length > 0
-            ? `\n\n錯誤詳情：\n${result.errors.slice(0, 5).join('\n')}${result.errors.length > 5
-              ? `\n...還有 ${result.errors.length - 5} 筆錯誤`
-              : ''
-            }`
-            : '';
-        toast.warning(
-          `匯入完成：成功 ${result.success} 筆、失敗 ${result.failed} 筆${errorDetails}`,
-          { duration: 8000 }
-        );
+        toast.warning(`匯入完成：成功 ${result.success} 筆、失敗 ${result.failed} 筆`, { duration: 8000 });
       }
 
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (error) {
       console.error('匯入錯誤:', error);
-      toast.error(
-        error instanceof Error
-          ? `匯入失敗：${error.message}`
-          : '匯入失敗，請檢查檔案格式'
-      );
+      toast.error(error instanceof Error ? `匯入失敗：${error.message}` : '匯入失敗，請檢查檔案格式');
     } finally {
       setIsImporting(false);
     }
@@ -479,9 +401,7 @@ export function MenuManagementPage() {
 
     if (!validExtensions.includes(fileExtension)) {
       toast.error('只支援 Excel 檔（.xlsx / .xls）');
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
 
@@ -490,48 +410,22 @@ export function MenuManagementPage() {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
-      {/* Page Header */}
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-semibold mb-1 text-gray-800">菜單管理</h2>
           <p className="text-sm text-muted-foreground">管理飲品、售價與上架狀態</p>
         </div>
         <div className="flex gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-          <Button
-            variant="outline"
-            onClick={handleImportClick}
-            disabled={isImporting}
-          >
-            {isImporting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                匯入中…
-              </>
-            ) : (
-              <>
-                <Upload className="w-4 h-4 mr-2" />
-                匯入
-              </>
-            )}
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls" onChange={handleFileChange} className="hidden" />
+          <Button variant="outline" onClick={handleImportClick} disabled={isImporting}>
+            {isImporting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />匯入中…</> : <><Upload className="w-4 h-4 mr-2" />匯入</>}
           </Button>
-          <Button
-            onClick={handleAdd}
-            style={{ backgroundColor: 'var(--df-accent)' }}
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            新增飲品
+          <Button onClick={handleAdd} style={{ backgroundColor: 'var(--df-accent)' }}>
+            <Plus className="w-4 h-4 mr-2" />新增飲品
           </Button>
         </div>
       </div>
 
-      {/* 統計 Chips */}
       {menuItems.length > 0 && (
         <div className="flex gap-3">
           <Badge variant="secondary" className="px-3 py-1.5 text-sm">
@@ -546,7 +440,6 @@ export function MenuManagementPage() {
         </div>
       )}
 
-      {/* Toolbar */}
       {menuItems.length > 0 && (
         <MenuToolbar
           searchQuery={searchQuery}
@@ -557,36 +450,26 @@ export function MenuManagementPage() {
           onStatusFilterChange={setStatusFilter}
           sortBy={sortBy}
           onSortChange={setSortBy}
-          // 👇 傳遞動態分類給 Toolbar
           categories={uniqueCategories}
         />
       )}
 
-      {/* Table 或空狀態 */}
       {filteredAndSortedItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 bg-white border rounded-lg">
           {menuItems.length === 0 ? (
             <>
               <Package className="w-12 h-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">尚無飲品</h3>
-              <p className="text-sm text-muted-foreground mb-6">
-                開始新增您的第一個飲品吧
-              </p>
-              <Button
-                onClick={handleAdd}
-                style={{ backgroundColor: 'var(--df-accent)' }}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                新增飲品
+              <p className="text-sm text-muted-foreground mb-6">開始新增您的第一個飲品吧</p>
+              <Button onClick={handleAdd} style={{ backgroundColor: 'var(--df-accent)' }}>
+                <Plus className="w-4 h-4 mr-2" />新增飲品
               </Button>
             </>
           ) : (
             <>
               <Package className="w-12 h-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">找不到符合條件的飲品</h3>
-              <p className="text-sm text-muted-foreground">
-                請嘗試調整搜尋或篩選條件
-              </p>
+              <p className="text-sm text-muted-foreground">請嘗試調整搜尋或篩選條件</p>
             </>
           )}
         </div>
@@ -605,13 +488,11 @@ export function MenuManagementPage() {
         </div>
       )}
 
-      {/* Drawer Form */}
       <MenuDrawerForm
         open={drawerOpen}
         onOpenChange={setDrawerOpen}
         item={editingItem}
         onSave={handleSave}
-        // 👇 也可以傳遞給 DrawerForm，讓新增編輯時也能選到最新的分類
         categories={uniqueCategories}
       />
     </div>
