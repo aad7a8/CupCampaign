@@ -55,7 +55,7 @@ export function MenuTable({
   const [itemToDelete, setItemToDelete] = React.useState<MenuItem | null>(null);
 
   const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
-  const someSelected = items.some((item) => selectedIds.has(item.id));
+  // const someSelected = items.some((item) => selectedIds.has(item.id)); // 目前沒用到可先註解或移除
 
   const handleDeleteClick = (item: MenuItem) => {
     setItemToDelete(item);
@@ -78,27 +78,6 @@ export function MenuTable({
       hour: '2-digit',
       minute: '2-digit',
     }).format(date);
-  };
-
-  const getCategoryLabel = (item: MenuItem) => {
-    // 如果是自訂分類，直接顯示 customCategory
-    if (item.category === 'other' && item.customCategory) {
-      return item.customCategory;
-    }
-    
-    // 固定分類對應表
-    const map: Record<string, string> = {
-      classic_tea: '經典原萃（純茶系列）',
-      milk_tea: '醇厚奶香（奶茶 / 拿鐵）',
-      fruit_tea: '鮮調果茶（水果系列）',
-      special: '特色特調（隱藏版 / 冰沙）',
-      other: '其他',
-      // 保留舊分類的相容性（向後相容）
-      tea: '茶類',
-      milk: '奶類',
-      fruit: '果茶',
-    };
-    return map[item.category] || item.category;
   };
 
   if (items.length === 0) {
@@ -137,11 +116,14 @@ export function MenuTable({
                   />
                 </TableCell>
                 <TableCell className="font-medium">{item.name}</TableCell>
+
+                {/* 👇 修改點：直接顯示 item.category，不再經過 map 轉換 */}
                 <TableCell>
                   <Badge variant="outline" className="font-normal">
-                    {getCategoryLabel(item)}
+                    {item.category || '未分類'}
                   </Badge>
                 </TableCell>
+
                 <TableCell className="text-right font-medium">
                   ${item.price}
                 </TableCell>
